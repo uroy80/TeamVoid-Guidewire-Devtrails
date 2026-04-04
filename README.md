@@ -32,7 +32,7 @@
   <a href="https://gigshield.in">
     <img src="https://img.shields.io/badge/Live-gigshield.in-4CAF50?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Live Demo"/>
   </a>
-  <a href="https://youtu.be/XA-Rt6C3Y6E">
+  <a href="https://youtu.be/JeeufFdo2Uk">
     <img src="https://img.shields.io/badge/Watch-Demo%20Video-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Demo Video"/>
   </a>
 </p>
@@ -989,7 +989,7 @@ open http://localhost:8080
 - [x] Tech stack selection
 - [x] README documentation
 - [x] Prototype (PWA)
-- [x] [2-min video](https://youtu.be/XA-Rt6C3Y6E)
+- [x] [2-min video](https://youtu.be/JeeufFdo2Uk)
 
 </td>
 <td valign="top">
