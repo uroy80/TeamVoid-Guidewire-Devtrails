@@ -187,11 +187,32 @@ export async function seed(knex: Knex): Promise<void> {
     });
   }
 
-  // Swiggy / Instamart stores
+  // Swiggy / Instamart stores — assign to nearest real zone by coordinates
+  // (these stores have no city data, so we can't match by city name)
+  const realZones = await knex('delivery_zones')
+    .whereNot('city', 'Unknown')
+    .where('latitude', '!=', 0)
+    .select('id', 'latitude', 'longitude');
+
+  function findNearestZoneId(lat: number, lng: number): string {
+    let nearestId = realZones[0]?.id;
+    let minDist = Infinity;
+    for (const z of realZones) {
+      const dLat = Number(z.latitude) - lat;
+      const dLng = Number(z.longitude) - lng;
+      const dist = dLat * dLat + dLng * dLng; // squared distance, no need for sqrt
+      if (dist < minDist) {
+        minDist = dist;
+        nearestId = z.id;
+      }
+    }
+    return nearestId;
+  }
+
   for (const s of swiggyStores) {
     const lat = s.coordinates[0];
     const lng = s.coordinates[1];
-    const zoneId = zoneMap.get('Unknown')!;
+    const zoneId = findNearestZoneId(lat, lng);
     storeRows.push({
       store_code: `IM-${s.id}`.substring(0, 50),
       name: `Instamart ${s.locality || s.id}`.substring(0, 100),
