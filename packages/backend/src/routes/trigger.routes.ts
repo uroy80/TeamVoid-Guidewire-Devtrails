@@ -91,7 +91,7 @@ router.post(
       const fraudResults = [];
       for (const claim of claims) {
         try {
-          const result = await fraudService.checkClaim(claim.id, 'AUTO');
+          const result = await fraudService.checkClaim(claim.id, 'ADMIN_TRIGGER');
           fraudResults.push({ claim_id: claim.id, claim_number: claim.claim_number, ...result });
         } catch { /* skip individual failures */ }
       }

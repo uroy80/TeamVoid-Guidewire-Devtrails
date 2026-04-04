@@ -33,6 +33,7 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 
 /**
  * Find the nearest delivery zone that isn't "Unknown", by lat/lng.
+ * If no zone is within 10km, create a new one via reverse geocoding.
  */
 async function findNearestRealZone(lat: number, lng: number) {
   const zones = await db('delivery_zones')
@@ -48,6 +49,47 @@ async function findNearestRealZone(lat: number, lng: number) {
       nearest = z;
     }
   }
+
+  // If nearest zone is > 10km away, create a new zone at this location
+  if (minDist > 10) {
+    try {
+      const rgRes = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=14&addressdetails=1`,
+        { headers: { 'User-Agent': 'GigShield/1.0' } }
+      );
+      const rgData = await rgRes.json() as any;
+      const addr = rgData.address || {};
+      const locality = addr.suburb || addr.neighbourhood || addr.village || addr.city_district || addr.town || 'Local Zone';
+      const city = addr.city || addr.town || addr.state_district || addr.county || nearest?.city || 'India';
+      const state = addr.state || nearest?.state || '';
+      const zoneName = locality;
+      const pinCode = addr.postcode || '000000';
+
+      // Check if we already created this zone
+      const existing = await db('delivery_zones')
+        .where({ city, name: zoneName })
+        .first();
+
+      if (existing) return existing;
+
+      const [newZone] = await db('delivery_zones').insert({
+        pin_code: pinCode,
+        name: zoneName,
+        city,
+        state,
+        latitude: lat,
+        longitude: lng,
+        base_risk: nearest?.base_risk || 40,
+      }).returning('*');
+
+      console.log(`[Zone] Created new zone: ${zoneName}, ${city} (${lat}, ${lng}) — nearest was ${minDist.toFixed(1)}km away`);
+      return newZone;
+    } catch (err) {
+      console.error('[Zone] Failed to create dynamic zone:', err);
+      return nearest; // fallback to nearest existing
+    }
+  }
+
   return nearest;
 }
 

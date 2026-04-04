@@ -12,7 +12,7 @@ interface FraudResult {
   details: FraudCheckDetails;
 }
 
-export async function checkClaim(claimId: string, source?: 'AUTO' | 'MANUAL'): Promise<FraudResult> {
+export async function checkClaim(claimId: string, source?: 'AUTO' | 'MANUAL' | 'ADMIN_TRIGGER'): Promise<FraudResult> {
   const claim = await db('claims').where({ id: claimId }).first();
   if (!claim) throw new Error(`Claim ${claimId} not found`);
 
@@ -131,8 +131,11 @@ export async function checkClaim(claimId: string, source?: 'AUTO' | 'MANUAL'): P
     tier = 'RED';
   }
 
-  // Manual claims ALWAYS go to admin review regardless of score
-  if (source === 'MANUAL') {
+  // Admin-triggered claims are auto-approved (trusted source)
+  if (source === 'ADMIN_TRIGGER') {
+    status = 'APPROVED';
+  // Manual worker claims ALWAYS go to admin review
+  } else if (source === 'MANUAL') {
     status = 'UNDER_REVIEW';
   } else if (fraudScore <= 50) {
     status = 'APPROVED';
