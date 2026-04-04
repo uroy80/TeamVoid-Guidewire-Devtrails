@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: gigshield-db
+    restart: always
+    environment:
+      POSTGRES_DB: gigshield
+      POSTGRES_USER: gigshield
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-gigshield_prod}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gigshield"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: gigshield-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gigshield-app
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+      - "4173:4173"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgres://gigshield:${DB_PASSWORD:-gigshield_prod}@db:5432/gigshield
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+
+  nginx:
+    image: nginx:alpine
+    container_name: gigshield-nginx
+    restart: always
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+volumes:
+  pgdata:

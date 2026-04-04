@@ -1,0 +1,14 @@
+{
+  "name": "GigShield",
+  "short_name": "GigShield",
+  "description": "AI-Powered Parametric Insurance for Q-Commerce Delivery Workers",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/logos/gigshield.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/logos/gigshield-192.png", "sizes": "192x192", "type": "image/png" }
+  ]
+}

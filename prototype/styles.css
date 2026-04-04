@@ -1,0 +1,221 @@
+* { font-family: 'Plus Jakarta Sans', sans-serif; -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+
+/* App Shell — mobile-first, full width on desktop */
+.app-shell {
+  max-width: 100%;
+  margin: 0 auto;
+  min-height: 100vh;
+  position: relative;
+  background: var(--bg-primary);
+}
+
+@media (max-width: 480px) {
+  .app-shell { max-width: 100%; }
+}
+
+/* Fix bottom nav to stay within shell on mobile */
+@media (max-width: 480px) {
+  .app-shell .fixed { position: fixed; }
+}
+
+/* Theme Variables */
+:root {
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-card: rgba(255,255,255,0.05);
+  --bg-card-border: rgba(255,255,255,0.1);
+  --bg-card-solid: #1e293b;
+  --text-primary: #ffffff;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --accent: #3b82f6;
+  --accent-light: rgba(59,130,246,0.15);
+  --success: #10b981;
+  --danger: #ef4444;
+  --border: rgba(255,255,255,0.08);
+  --input-bg: #0f172a;
+  --input-border: #334155;
+  --nav-bg: rgba(15,23,42,0.95);
+  --map-tile: dark;
+}
+
+body.light {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-card: rgba(255,255,255,0.9);
+  --bg-card-border: rgba(0,0,0,0.08);
+  --bg-card-solid: #ffffff;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --accent: #3b82f6;
+  --accent-light: rgba(59,130,246,0.1);
+  --success: #10b981;
+  --danger: #ef4444;
+  --border: rgba(0,0,0,0.06);
+  --input-bg: #f1f5f9;
+  --input-border: #e2e8f0;
+  --nav-bg: rgba(255,255,255,0.95);
+  --map-tile: light;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background 0.3s, color 0.3s;
+}
+
+.glass {
+  background: var(--bg-card);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--bg-card-border);
+}
+
+.card-solid {
+  background: var(--bg-card-solid);
+  border: 1px solid var(--border);
+}
+
+.text-p { color: var(--text-primary); }
+.text-s { color: var(--text-secondary); }
+.text-m { color: var(--text-muted); }
+.bg-p { background: var(--bg-primary); }
+.bg-s { background: var(--bg-secondary); }
+.input-style {
+  background: var(--input-bg);
+  border: 1.5px solid var(--input-border);
+  color: var(--text-primary);
+  transition: all 0.2s;
+  font-size: 15px;
+}
+.input-style:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-light);
+}
+.input-style::placeholder { color: var(--text-muted); }
+
+select.input-style {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  padding-right: 40px;
+}
+
+
+.gradient-primary { background: linear-gradient(135deg, #3b82f6 0%, #6366f1 50%, #8b5cf6 100%); }
+.gradient-success { background: linear-gradient(135deg, #10b981 0%, #34d399 100%); }
+.gradient-danger { background: linear-gradient(135deg, #ef4444 0%, #f97316 100%); }
+.text-gradient {
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+  transition: all 0.3s;
+  box-shadow: 0 4px 15px rgba(59,130,246,0.3);
+}
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 25px rgba(59,130,246,0.4); }
+.btn-primary:active { transform: translateY(0); }
+
+.glow { box-shadow: 0 0 40px rgba(59,130,246,0.3); }
+.glow-success { box-shadow: 0 0 40px rgba(16,185,129,0.4); }
+
+/* Animations */
+.slide-up { animation: slideUp 0.4s cubic-bezier(0.16,1,0.3,1); }
+@keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+.fade-in { animation: fadeIn 0.3s ease-out; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.float { animation: float 3s ease-in-out infinite; }
+@keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+.pulse-ring { animation: pulseRing 2s ease-out infinite; }
+@keyframes pulseRing { 0% { transform: scale(0.8); opacity: 1; } 100% { transform: scale(2); opacity: 0; } }
+
+.progress-bar {
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899);
+  background-size: 200% 100%;
+  animation: progressGradient 2s linear infinite;
+}
+@keyframes progressGradient { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
+
+.status-pulse { animation: statusPulse 2s ease-in-out infinite; }
+@keyframes statusPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+.card-hover { transition: all 0.3s; }
+.card-hover:active { transform: scale(0.98); }
+
+/* Map */
+#map, #dashboardMap, #fullMap, #locationMap { border-radius: 16px; z-index: 1; }
+.leaflet-control-attribution { display: none !important; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 3px; }
+
+/* Risk meter */
+.risk-meter {
+  background: conic-gradient(from 180deg, #10b981 0deg, #fbbf24 120deg, #f97316 200deg, #ef4444 280deg, #ef4444 360deg);
+}
+
+/* Face scan overlay */
+.scan-line {
+  background: linear-gradient(transparent, rgba(59,130,246,0.5), transparent);
+  animation: scanMove 2s ease-in-out infinite;
+}
+@keyframes scanMove { 0%,100% { top: 10%; } 50% { top: 80%; } }
+
+.face-oval {
+  border: 3px dashed rgba(59,130,246,0.6);
+  border-radius: 50%;
+  animation: faceOvalPulse 2s ease-in-out infinite;
+}
+@keyframes faceOvalPulse { 0%,100% { border-color: rgba(59,130,246,0.6); } 50% { border-color: rgba(59,130,246,1); } }
+
+
+/* Extra polish */
+.glass { border-radius: 16px; }
+h1, h2, h3 { letter-spacing: -0.02em; }
+p { line-height: 1.5; }
+
+/* Smooth page transitions */
+#app > div { animation: fadeIn 0.25s ease-out; }
+
+/* Better touch targets */
+button, select, input { min-height: 44px; }
+
+/* Nicer radio cards */
+.peer:checked + div {
+  box-shadow: 0 0 0 2px var(--accent), 0 4px 12px rgba(59,130,246,0.15);
+}
+
+/* Chart container */
+canvas { border-radius: 8px; }
+
+/* Bottom nav polish */
+.app-shell .fixed.bottom-0 {
+  border-radius: 0;
+}
+
+/* Prevent content from hiding behind bottom nav */
+.pb-24 { padding-bottom: 6rem; }
+
+
+/* Desktop responsive — wider content area with max-width for readability */
+@media (min-width: 768px) {
+  .app-shell { padding: 0 5%; }
+  .min-h-screen { max-width: 720px; margin: 0 auto; }
+}
+
+@media (min-width: 1024px) {
+  .min-h-screen { max-width: 800px; }
+}
+
+
+/* Platform card selection states — handled via JS */
