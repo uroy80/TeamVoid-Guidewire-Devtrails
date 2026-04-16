@@ -1,36 +1,43 @@
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import ThemeToggle from '../components/ThemeToggle';
-
-const features = [
-  {
-    icon: 'ri-cloud-line',
-    color: 'text-blue-400',
-    bg: 'bg-blue-500/10',
-    title: 'Heavy rain? Get paid instantly',
-    desc: 'Automatic payouts when rainfall disrupts your deliveries.',
-  },
-  {
-    icon: 'ri-fire-line',
-    color: 'text-orange-400',
-    bg: 'bg-orange-500/10',
-    title: 'Extreme heat? Covered',
-    desc: 'Heatwave protection keeps your income safe.',
-  },
-  {
-    icon: 'ri-forbid-line',
-    color: 'text-red-400',
-    bg: 'bg-red-500/10',
-    title: "Curfew? We got you",
-    desc: 'Civil disruption coverage when you can\'t work.',
-  },
-];
+import LanguageSwitcher from '../components/LanguageSwitcher';
+import HeroStats from '../components/HeroStats';
 
 export default function Welcome() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
+
+  const features = [
+    {
+      icon: 'ri-cloud-line',
+      color: 'text-blue-400',
+      bg: 'bg-blue-500/10',
+      title: t('welcome.feature_rain_title'),
+      desc: t('welcome.feature_rain_desc'),
+    },
+    {
+      icon: 'ri-fire-line',
+      color: 'text-orange-400',
+      bg: 'bg-orange-500/10',
+      title: t('welcome.feature_heat_title'),
+      desc: t('welcome.feature_heat_desc'),
+    },
+    {
+      icon: 'ri-forbid-line',
+      color: 'text-red-400',
+      bg: 'bg-red-500/10',
+      title: t('welcome.feature_curfew_title'),
+      desc: t('welcome.feature_curfew_desc'),
+    },
+  ];
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12" style={{ background: 'var(--bg-primary)' }}>
-      <div className="flex justify-end mb-4 w-full max-w-sm"><ThemeToggle /></div>
+      <div className="flex justify-end gap-2 mb-4 w-full max-w-sm">
+        <LanguageSwitcher />
+        <ThemeToggle />
+      </div>
 
       {/* Logo with glow */}
       <div className="slide-up mb-6">
@@ -47,15 +54,18 @@ export default function Welcome() {
       {/* Heading */}
       <div className="text-center mb-8 slide-up" style={{ animationDelay: '0.1s' }}>
         <h1 className="text-3xl font-extrabold mb-1" style={{ color: 'var(--text-primary)' }}>
-          Protect Your
+          {t('welcome.tagline')}
         </h1>
         <h1 className="text-3xl font-extrabold text-gradient">
-          Income
+          {t('welcome.tagline_highlight')}
         </h1>
         <p className="mt-3 text-sm" style={{ color: 'var(--text-secondary)' }}>
-          Weather-based income protection for gig delivery workers
+          {t('welcome.subtitle')}
         </p>
       </div>
+
+      {/* Live Hero Stats */}
+      <HeroStats />
 
       {/* Feature cards */}
       <div className="w-full max-w-sm space-y-3 mb-6">
@@ -90,10 +100,10 @@ export default function Welcome() {
         </div>
         <div>
           <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-            Starting at just <span className="text-emerald-400">&#8377;29/week</span>
+            {t('welcome.pricing_main')}
           </p>
           <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-            Less than a cup of chai per day
+            {t('welcome.pricing_sub')}
           </p>
         </div>
       </div>
@@ -104,7 +114,7 @@ export default function Welcome() {
           onClick={() => navigate('/login')}
           className="btn-primary w-full flex items-center justify-center gap-2 text-base py-3.5"
         >
-          Get Started
+          {t('welcome.cta_get_started')}
           <i className="ri-arrow-right-line" />
         </button>
 
@@ -113,7 +123,7 @@ export default function Welcome() {
           className="glass w-full py-3 text-sm font-medium"
           style={{ color: 'var(--text-secondary)' }}
         >
-          Already have an account? <span style={{ color: 'var(--accent)' }}>Login</span>
+          {t('welcome.cta_login')} <span style={{ color: 'var(--accent)' }}>{t('welcome.cta_login_link')}</span>
         </button>
 
         <button
@@ -122,7 +132,7 @@ export default function Welcome() {
           style={{ color: 'var(--accent)' }}
         >
           <i className="ri-play-circle-line" />
-          Anti-Spoofing Live Demo
+          {t('welcome.cta_demo')}
         </button>
 
         <button
@@ -130,7 +140,7 @@ export default function Welcome() {
           className="w-full py-2 text-xs"
           style={{ color: 'var(--text-muted)' }}
         >
-          Admin Login
+          {t('welcome.cta_admin')}
         </button>
       </div>
     </div>

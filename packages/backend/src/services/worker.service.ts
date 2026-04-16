@@ -3,6 +3,7 @@ import { AppError } from '../middleware/errorHandler.js';
 import { computeRiskScore, classifyRiskTier, computeHourlyRate, computeAvgHoursPerDay } from '@gigshield/shared';
 import type { Worker, Platform } from '@gigshield/shared';
 import { generateSyntheticProfile } from './synthetic.service.js';
+import { events } from './events.service.js';
 
 /**
  * Input for the new registration flow.
@@ -227,6 +228,15 @@ export async function register(input: NewRegisterInput): Promise<Worker> {
       risk_tier: riskTier,
     })
     .returning('*');
+
+  try {
+    events.emitEvent('WORKER_REGISTERED', {
+      worker_id: worker.id,
+      name: worker.name,
+      platform: worker.platform,
+      zone_id: worker.delivery_zone_id,
+    });
+  } catch {}
 
   return worker as Worker;
 }

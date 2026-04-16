@@ -1,9 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { GoogleMap, Circle as GCircle, InfoWindow, Marker } from '@react-google-maps/api';
 import { analytics, triggers, admin } from '../api/client';
 import { useGoogleMaps } from '../hooks/useGoogleMaps';
+import { useStore } from '../store/store';
+import useEventStream from '../hooks/useEventStream';
 import ThemeToggle from '../components/ThemeToggle';
+import LiveOpsFeed from '../components/LiveOpsFeed';
 
 interface OverviewData {
   activePolicies: number;
@@ -83,6 +86,23 @@ const AUDIT_EVENT_ICONS: Record<string, string> = {
 
 const AdminDashboard: React.FC = () => {
   const { isLoaded } = useGoogleMaps();
+  const token = useStore((s) => s.token);
+  const { events, connected } = useEventStream(token);
+
+  // Compute "Total Payouts Today" from event stream
+  const payoutsToday = useMemo(() => {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const startMs = startOfDay.getTime();
+    let sum = 0;
+    for (const e of events) {
+      if (e.type === 'PAYOUT_SENT' && e.ts >= startMs) {
+        const amt = Number(e.payload?.amount ?? 0);
+        if (!Number.isNaN(amt)) sum += amt;
+      }
+    }
+    return sum;
+  }, [events]);
   const [overview, setOverview] = useState<OverviewData | null>(null);
   const [stats, setStats] = useState<StatsData | null>(null);
   const [zones, setZones] = useState<TriggerZone[]>([]);
@@ -239,7 +259,22 @@ const AdminDashboard: React.FC = () => {
           <div className="flex items-center gap-3">
             <img src="/logos/gigshield.png" alt="GigShield" className="w-9 h-9 rounded-lg" />
             <div>
-              <h1 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>GigShield Admin</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>GigShield Admin</h1>
+                {connected ? (
+                  <div className="flex items-center gap-1">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                    </span>
+                    <span className="text-[9px] font-bold tracking-wider text-emerald-500">LIVE</span>
+                  </div>
+                ) : (
+                  <span className="text-[9px] font-bold tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                    OFFLINE
+                  </span>
+                )}
+              </div>
               <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Dashboard Overview</p>
             </div>
           </div>
@@ -322,6 +357,43 @@ const AdminDashboard: React.FC = () => {
       )}
 
       <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+        {/* Live Ops Row: feed + today's payouts counter */}
+        <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2">
+            <LiveOpsFeed />
+          </div>
+          <div
+            className="rounded-xl p-5 flex flex-col justify-between"
+            style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: 'rgba(16,185,129,0.15)' }}>
+                  <i className="ri-money-rupee-circle-line text-lg" style={{ color: '#10b981' }} />
+                </div>
+                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Total Payouts Today</span>
+              </div>
+              {connected && (
+                <div className="flex items-center gap-1">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                  </span>
+                </div>
+              )}
+            </div>
+            <p
+              className="mt-4 text-4xl font-bold transition-all duration-500"
+              style={{ color: 'var(--text-primary)' }}
+            >
+              {formatCurrency(payoutsToday)}
+            </p>
+            <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+              Updates live from payout events
+            </p>
+          </div>
+        </section>
+
         {/* Enhanced Stats Grid - 2 rows of 3 */}
         <section>
           <h2 className="text-sm font-medium uppercase tracking-wider mb-4" style={{ color: 'var(--text-secondary)' }}>Overview</h2>
@@ -637,7 +709,7 @@ const AdminDashboard: React.FC = () => {
         {/* Navigation Cards */}
         <section>
           <h2 className="text-sm font-medium uppercase tracking-wider mb-4" style={{ color: 'var(--text-secondary)' }}>Quick Navigation</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Link
               to="/admin/fraud"
               className="glass card-hover rounded-xl p-5 hover:border-red-500/30 transition-colors group"
@@ -649,6 +721,18 @@ const AdminDashboard: React.FC = () => {
                 <h3 className="font-semibold group-hover:text-red-400 transition-colors" style={{ color: 'var(--text-primary)' }}>Fraud Review</h3>
               </div>
               <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Review flagged claims and BAS scores</p>
+            </Link>
+            <Link
+              to="/admin/actuarial"
+              className="glass card-hover rounded-xl p-5 hover:border-emerald-500/30 transition-colors group"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-lg bg-emerald-600/20 flex items-center justify-center">
+                  <i className="ri-line-chart-line text-lg text-emerald-400" />
+                </div>
+                <h3 className="font-semibold group-hover:text-emerald-400 transition-colors" style={{ color: 'var(--text-primary)' }}>Actuarial</h3>
+              </div>
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Loss ratios, reserves, and solvency</p>
             </Link>
             <Link
               to="/admin/users"

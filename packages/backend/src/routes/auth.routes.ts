@@ -21,6 +21,10 @@ const refreshSchema = z.object({
   token: z.string().min(1, 'Token is required'),
 });
 
+const refreshTokenSchema = z.object({
+  refresh_token: z.string().min(1, 'refresh_token is required'),
+});
+
 const adminLoginSchema = z.object({
   email: z.string().email('Invalid email'),
   password: z.string().min(1, 'Password is required'),
@@ -106,6 +110,42 @@ router.post('/admin/login', validate(adminLoginSchema), async (req: Request, res
         role: 'admin',
       },
     });
+  } catch (err) {
+    const error = err as Error & { statusCode?: number };
+    res.status(error.statusCode ?? 500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /refresh-token
+ * Exchange a refresh token for a new access + refresh pair.
+ * Detects token reuse and revokes the entire session family on abuse.
+ */
+router.post('/refresh-token', validate(refreshTokenSchema), async (req: Request, res: Response) => {
+  try {
+    const { refresh_token } = req.body;
+    const pair = await authService.rotateRefresh(refresh_token);
+    res.json({
+      access_token: pair.accessToken,
+      refresh_token: pair.refreshToken,
+      access_token_expires_in: pair.accessTokenExpiresIn,
+      refresh_token_expires_in: pair.refreshTokenExpiresIn,
+    });
+  } catch (err) {
+    const error = err as Error & { statusCode?: number };
+    res.status(error.statusCode ?? 401).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /logout
+ * Revoke the presented refresh token. Idempotent.
+ */
+router.post('/logout', validate(refreshTokenSchema), async (req: Request, res: Response) => {
+  try {
+    const { refresh_token } = req.body;
+    await authService.revokeRefresh(refresh_token);
+    res.json({ success: true });
   } catch (err) {
     const error = err as Error & { statusCode?: number };
     res.status(error.statusCode ?? 500).json({ error: error.message });

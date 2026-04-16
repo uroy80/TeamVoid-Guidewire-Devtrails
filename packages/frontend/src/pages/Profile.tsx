@@ -1,8 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { worker, policy } from '../api/client';
 import { useStore } from '../store/store';
 import ThemeToggle from '../components/ThemeToggle';
+import LanguageSwitcher from '../components/LanguageSwitcher';
+
+function getTrustColor(score: number): string {
+  if (score < 40) return '#ef4444';
+  if (score < 70) return '#f59e0b';
+  return '#10b981';
+}
 
 const RISK_COLORS = [
   { max: 30, label: 'Low', color: '#10b981' },
@@ -32,6 +40,7 @@ const EXCLUSIONS = [
 
 export default function Profile() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const logout = useStore((s) => s.logout);
   const [me, setMe] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
@@ -88,6 +97,7 @@ export default function Profile() {
           <i className="ri-arrow-left-line text-lg" style={{ color: 'var(--text-primary)' }} />
         </button>
         <h1 className="flex-1 text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Profile</h1>
+        <LanguageSwitcher />
         <ThemeToggle />
       </div>
 
@@ -133,7 +143,7 @@ export default function Profile() {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <i className="ri-pulse-line" style={{ color: risk.color }} />
-            <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>Risk Score</span>
+            <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{t('profile.risk_score')}</span>
           </div>
           <span className="text-xs font-semibold" style={{ color: risk.color }}>
             {risk.label}
@@ -150,6 +160,36 @@ export default function Profile() {
         </div>
       </div>
 
+      {/* Trust Score */}
+      {(() => {
+        const trust = Number(me?.trust_score ?? 50);
+        const trustColor = getTrustColor(trust);
+        return (
+          <div className="glass p-5 mb-6 slide-up" style={{ animationDelay: '0.17s' }}>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <i className="ri-shield-star-line" style={{ color: trustColor }} />
+                <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{t('profile.trust_score')}</span>
+              </div>
+              <span className="text-xs font-semibold" style={{ color: trustColor }}>
+                {trust} / 100
+              </span>
+            </div>
+            <p className="text-[11px] mb-3" style={{ color: 'var(--text-muted)' }}>
+              {t('profile.trust_score_desc')}
+            </p>
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-3 rounded-full overflow-hidden" style={{ background: 'var(--bg-card)' }}>
+                <div
+                  className="h-full rounded-full transition-all duration-700"
+                  style={{ width: `${Math.max(0, Math.min(100, trust))}%`, background: trustColor }}
+                />
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Exclusions Section */}
       <div className="glass mb-6 slide-up" style={{ animationDelay: '0.15s', overflow: 'hidden' }}>
         <div className="p-4 flex items-center justify-between">
@@ -162,9 +202,9 @@ export default function Profile() {
               }} />
             </div>
             <div>
-              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Policy Exclusions</p>
+              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{t('profile.exclusions_title')}</p>
               <p className="text-[10px]" style={{ color: me?.exclusions_acknowledged ? '#10b981' : '#eab308' }}>
-                {me?.exclusions_acknowledged ? 'Acknowledged' : 'Action required — please review'}
+                {me?.exclusions_acknowledged ? t('profile.exclusions_ack') : t('profile.exclusions_pending')}
               </p>
             </div>
           </div>
@@ -250,7 +290,7 @@ export default function Profile() {
       <div className="mb-6 slide-up" style={{ animationDelay: '0.2s' }}>
         <h3 className="font-semibold text-sm mb-3" style={{ color: 'var(--text-primary)' }}>
           <i className="ri-history-line mr-1.5" style={{ color: 'var(--accent)' }} />
-          Policy History
+          {t('profile.policy_history')}
         </h3>
         {history.length === 0 ? (
           <div className="glass p-6 text-center">
@@ -300,7 +340,7 @@ export default function Profile() {
         style={{ borderColor: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', animationDelay: '0.25s' }}
       >
         <i className="ri-logout-box-r-line" />
-        Logout
+        {t('profile.logout')}
       </button>
     </div>
   );

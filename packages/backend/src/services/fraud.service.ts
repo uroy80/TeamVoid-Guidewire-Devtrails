@@ -3,6 +3,8 @@ import { haversineDistance, TRIGGER_THRESHOLDS } from '@gigshield/shared';
 import type { Claim, FraudCheckDetails, DisruptionType } from '@gigshield/shared';
 import { randomUUID } from 'crypto';
 import { analyzeWorkerBehavior } from './antispoofing.service.js';
+import { events } from './events.service.js';
+import { env } from '../config/env.js';
 
 interface FraudResult {
   claimId: string;
@@ -117,6 +119,39 @@ export async function checkClaim(claimId: string, source?: 'AUTO' | 'MANUAL' | '
   // Cap fraud score at 100
   fraudScore = Math.min(100, fraudScore);
 
+  // Preserve the rule-based score so it's stored even if ML overrides it.
+  const ruleBasedScore = fraudScore;
+
+  // ---- 5. Optional ML sidecar ----
+  const mlClaimSource: 'AUTO' | 'MANUAL' =
+    source === 'MANUAL' ? 'MANUAL' : 'AUTO';
+  const mlResult = await callMlSidecar({
+    worker_id: claim.worker_id,
+    claim_id: claimId,
+    bas_components: {
+      tem: bas.historical_behavior,
+      geo: bas.gps_authenticity,
+      dev: bas.device_consistency,
+      net: bas.weather_correlation, // no dedicated network score yet — reuse weather signal
+      beh: bas.movement_entropy,
+      soc: bas.ring_fraud_absence,
+    },
+    velocity: await computeMlVelocity(claim.worker_id),
+    temporal: await computeMlTemporal(claim.worker_id, event.event_timestamp),
+    context: {
+      zone_hazard_score: Number(zone?.risk_score ?? 50),
+      worker_trust_score: Number(worker.trust_score ?? bas.total ?? 50),
+      payout_amount: Number(claim.income_loss_payout ?? 0),
+      claim_source: mlClaimSource,
+    },
+  });
+
+  const mlUsed = mlResult !== null;
+  if (mlUsed && mlResult) {
+    // ML fraud score (0..100) overrides the rule score for decisioning.
+    fraudScore = Math.round(mlResult.fraud_probability * 100);
+  }
+
   // ---- Determine tier and status ----
   let tier: 'GREEN' | 'YELLOW' | 'ORANGE' | 'RED';
   let status: string;
@@ -137,13 +172,23 @@ export async function checkClaim(claimId: string, source?: 'AUTO' | 'MANUAL' | '
   // Manual worker claims ALWAYS go to admin review
   } else if (source === 'MANUAL') {
     status = 'UNDER_REVIEW';
+  } else if (mlUsed && mlResult) {
+    // When ML is authoritative, use its decision directly.
+    if (mlResult.decision === 'APPROVE') status = 'APPROVED';
+    else if (mlResult.decision === 'DECLINE') status = 'REJECTED';
+    else status = 'UNDER_REVIEW';
   } else if (fraudScore <= 50) {
     status = 'APPROVED';
   } else {
     status = 'UNDER_REVIEW';
   }
 
-  const details: FraudCheckDetails = {
+  const details: FraudCheckDetails & {
+    rule_based_score?: number;
+    ml_used?: boolean;
+    ml_explanations?: unknown;
+    ml_model_version?: string;
+  } = {
     bas_score: bas.total,
     gps_authenticity: bas.gps_authenticity,
     movement_entropy: bas.movement_entropy,
@@ -154,6 +199,14 @@ export async function checkClaim(claimId: string, source?: 'AUTO' | 'MANUAL' | '
     flags,
     tier,
     bas_breakdown: bas,
+    rule_based_score: ruleBasedScore,
+    ml_used: mlUsed,
+    ...(mlUsed && mlResult
+      ? {
+          ml_explanations: mlResult.top_factors,
+          ml_model_version: mlResult.model_version,
+        }
+      : {}),
   };
 
   // Update claim
@@ -174,5 +227,176 @@ export async function checkClaim(claimId: string, source?: 'AUTO' | 'MANUAL' | '
     created_at: new Date(),
   });
 
+  try {
+    events.emitEvent('FRAUD_CHECKED', {
+      claim_id: claimId,
+      claim_number: claim.claim_number,
+      fraud_score: fraudScore,
+      tier,
+      status,
+      source: source || 'AUTO',
+      ml_used: mlUsed,
+    });
+  } catch {}
+
   return { claimId, fraud_score: fraudScore, status, tier, details };
+}
+
+// ---------------------------------------------------------------------------
+// ML sidecar integration (private helpers)
+// ---------------------------------------------------------------------------
+
+interface MlShapFactor {
+  feature: string;
+  value: number;
+  shap_value: number;
+  direction: 'increases_fraud' | 'decreases_fraud';
+}
+
+interface MlFraudResponse {
+  fraud_probability: number;
+  decision: 'APPROVE' | 'REVIEW' | 'DECLINE';
+  tier: 'LOW' | 'MEDIUM' | 'HIGH';
+  top_factors: MlShapFactor[];
+  model_version: string;
+  latency_ms: number;
+}
+
+interface MlRequest {
+  worker_id: string;
+  claim_id: string;
+  bas_components: {
+    tem: number;
+    geo: number;
+    dev: number;
+    net: number;
+    beh: number;
+    soc: number;
+  };
+  velocity: {
+    claims_last_24h: number;
+    claims_last_7d: number;
+    shared_device_workers: number;
+    shared_ip_workers: number;
+  };
+  temporal: {
+    hours_since_registration: number;
+    minutes_since_disruption: number;
+    claim_hour_of_day: number;
+  };
+  context: {
+    zone_hazard_score: number;
+    worker_trust_score: number;
+    payout_amount: number;
+    claim_source: 'AUTO' | 'MANUAL';
+  };
+}
+
+/** Call the ML sidecar. Returns null on timeout / error / disabled. */
+async function callMlSidecar(payload: MlRequest): Promise<MlFraudResponse | null> {
+  const base = (env.ML_FRAUD_URL || '').trim();
+  if (!base) return null;
+
+  const timeoutMs = Number(env.ML_FRAUD_TIMEOUT_MS) || 500;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${base.replace(/\/$/, '')}/v1/fraud/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) {
+      console.warn(`[fraud.ml] sidecar returned HTTP ${res.status}, falling back to rules`);
+      return null;
+    }
+    const json = (await res.json()) as MlFraudResponse;
+    return json;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`[fraud.ml] sidecar call failed (${msg}), falling back to rules`);
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function computeMlVelocity(workerId: string): Promise<MlRequest['velocity']> {
+  const now = Date.now();
+  const since24h = new Date(now - 24 * 60 * 60 * 1000);
+  const since7d = new Date(now - 7 * 24 * 60 * 60 * 1000);
+
+  const [c24] = await db('claims')
+    .where({ worker_id: workerId })
+    .where('created_at', '>=', since24h)
+    .count<{ count: string }[]>('id as count');
+
+  const [c7d] = await db('claims')
+    .where({ worker_id: workerId })
+    .where('created_at', '>=', since7d)
+    .count<{ count: string }[]>('id as count');
+
+  // shared_device_workers: # distinct other workers seen on any of this worker's devices
+  const fps = await db('device_fingerprints')
+    .where({ worker_id: workerId })
+    .pluck<string[]>('fingerprint_hash');
+
+  let sharedDeviceWorkers = 0;
+  if (fps.length > 0) {
+    const others = await db('device_fingerprints')
+      .whereIn('fingerprint_hash', fps)
+      .whereNot('worker_id', workerId)
+      .distinct<{ worker_id: string }[]>('worker_id');
+    sharedDeviceWorkers = others.length;
+  }
+
+  // shared_ip_workers: not tracked yet — default to 0 if the table is missing.
+  let sharedIpWorkers = 0;
+  try {
+    const hasIpTable = await db.schema.hasTable('worker_ip_log');
+    if (hasIpTable) {
+      const ipRows = await db('worker_ip_log')
+        .where({ worker_id: workerId })
+        .where('seen_at', '>=', since24h)
+        .distinct<{ ip_address: string }[]>('ip_address');
+      const ips = ipRows.map((r) => r.ip_address);
+      if (ips.length > 0) {
+        const others = await db('worker_ip_log')
+          .whereIn('ip_address', ips)
+          .where('seen_at', '>=', since24h)
+          .whereNot('worker_id', workerId)
+          .distinct<{ worker_id: string }[]>('worker_id');
+        sharedIpWorkers = others.length;
+      }
+    }
+  } catch {
+    sharedIpWorkers = 0;
+  }
+
+  return {
+    claims_last_24h: Number(c24?.count ?? 0),
+    claims_last_7d: Number(c7d?.count ?? 0),
+    shared_device_workers: sharedDeviceWorkers,
+    shared_ip_workers: sharedIpWorkers,
+  };
+}
+
+async function computeMlTemporal(
+  workerId: string,
+  eventTs: Date | string | null | undefined
+): Promise<MlRequest['temporal']> {
+  const worker = await db('workers').where({ id: workerId }).first();
+  const now = new Date();
+  const createdAt = worker?.created_at ? new Date(worker.created_at) : now;
+  const hoursSinceReg = Math.max(0, (now.getTime() - createdAt.getTime()) / 3_600_000);
+
+  const evDate = eventTs ? new Date(eventTs) : now;
+  const minsSinceDisruption = Math.max(0, (now.getTime() - evDate.getTime()) / 60_000);
+
+  return {
+    hours_since_registration: Number(hoursSinceReg.toFixed(2)),
+    minutes_since_disruption: Number(minsSinceDisruption.toFixed(2)),
+    claim_hour_of_day: now.getHours(),
+  };
 }

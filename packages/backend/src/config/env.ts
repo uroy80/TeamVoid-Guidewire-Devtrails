@@ -19,6 +19,9 @@ const envSchema = z.object({
   TWILIO_VERIFY_SID: z.string().default(''),
   PORT: z.coerce.number().default(3000),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  // ML fraud sidecar (optional)
+  ML_FRAUD_URL: z.string().default(''),
+  ML_FRAUD_TIMEOUT_MS: z.coerce.number().default(500),
 });
 
 export const env = envSchema.parse(process.env);

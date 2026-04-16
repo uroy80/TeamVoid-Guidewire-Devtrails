@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { requireAuth, requireAdmin, type AuthRequest } from '../middleware/auth.js';
 import * as claimService from '../services/claim.service.js';
+import * as auditService from '../services/audit.service.js';
 import { db } from '../config/database.js';
 import {
   generateRiskNarrative,
@@ -78,6 +79,20 @@ router.get('/audit-log', async (req: AuthRequest, res: Response) => {
     res.json({ logs, limit: pageLimit, offset: pageOffset });
   } catch (err) {
     console.error('[AdminRoutes] Error fetching audit log:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /admin/audit/verify
+ * Verify the tamper-evident hash chain of the audit_log table.
+ */
+router.get('/audit/verify', async (_req: AuthRequest, res: Response) => {
+  try {
+    const result = await auditService.verifyAuditChain();
+    res.json(result);
+  } catch (err) {
+    console.error('[AdminRoutes] Error verifying audit chain:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

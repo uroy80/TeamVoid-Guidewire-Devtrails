@@ -129,11 +129,31 @@ export const admin = {
   getClaimAIAssessment: (id: string) => api.get(`/admin/claims/${id}/ai-assessment`),
   getHeatmap: () => api.get('/admin/heatmap'),
   resetAll: () => api.post('/admin/reset'),
+  // ── Actuarial (Wave 2) ───────────────────────────────────
+  getActuarialOverview: () => api.get('/admin/actuarial/overview'),
+  getActuarialByZone: () => api.get('/admin/actuarial/by-zone'),
 };
 
 // ── Demo ───────────────────────────────────────────────────
 export const demo = {
   simulate: (scenario: string) => api.post('/demo/simulate', { scenario }),
+};
+
+// ── Public (no auth required) ──────────────────────────────
+export const publicApi = {
+  getStats: () => api.get('/public/stats').then((r) => r.data),
+};
+
+// ── Community (worker reports) ─────────────────────────────
+export const community = {
+  submitReport: (body: {
+    latitude: number;
+    longitude: number;
+    condition_type: string;
+    severity: string;
+    notes?: string;
+  }) => api.post('/community/report', body).then((r) => r.data),
+  getPending: () => api.get('/community/admin/pending').then((r) => r.data.reports),
 };
 
 export default api;

@@ -4,6 +4,9 @@ import { db } from '../config/database.js';
 import { env } from '../config/env.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { sendOtpSMS, verifyOtpTwilio } from '../external/sms.client.js';
+import { issueTokens as libIssueTokens, rotateRefresh as libRotateRefresh, revokeRefresh as libRevokeRefresh } from '../lib/tokens.js';
+import type { TokenPair } from '../lib/tokens.js';
+import type { WorkerRole } from '../middleware/auth.js';
 
 const OTP_EXPIRY_MINUTES = 5;
 const MAX_OTP_ATTEMPTS = 3;
@@ -131,4 +134,32 @@ export function refreshToken(token: string): { token: string } {
     }
     throw new AppError('Invalid token', 401);
   }
+}
+
+/**
+ * Issue a fresh access+refresh pair. Thin wrapper over lib/tokens so routes
+ * can import one place.
+ */
+export async function issueTokens(
+  workerId: string,
+  isAdmin: boolean,
+  role?: WorkerRole,
+): Promise<TokenPair> {
+  return libIssueTokens(workerId, isAdmin, role);
+}
+
+/**
+ * Rotate a refresh token — returns a new pair and invalidates the old one.
+ * Detects reuse and revokes the entire token family if the same refresh
+ * token is presented twice.
+ */
+export async function rotateRefresh(refreshToken: string): Promise<TokenPair> {
+  return libRotateRefresh(refreshToken);
+}
+
+/**
+ * Revoke a refresh token (logout).
+ */
+export async function revokeRefresh(refreshToken: string): Promise<void> {
+  return libRevokeRefresh(refreshToken);
 }

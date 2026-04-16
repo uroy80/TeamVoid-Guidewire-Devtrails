@@ -9,6 +9,7 @@ import {
   LOYALTY_DISCOUNT,
 } from '@gigshield/shared';
 import type { CoverageLevel, Policy, WorkerProfile } from '@gigshield/shared';
+import { events } from './events.service.js';
 
 function buildWorkerProfile(worker: Record<string, any>, zone: Record<string, any>): WorkerProfile {
   const totalDays = 30;
@@ -139,6 +140,15 @@ export async function create(
       transaction_ref: transactionRef,
     }),
   });
+
+  try {
+    events.emitEvent('POLICY_CREATED', {
+      policy_id: policy.id,
+      worker_id: workerId,
+      coverage_level: policy.coverage_level,
+      premium: policy.weekly_premium,
+    });
+  } catch {}
 
   return policy;
 }

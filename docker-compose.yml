@@ -27,5 +27,18 @@ services:
       timeout: 5s
       retries: 5
 
+  ml-fraud:
+    build: ./packages/ml-fraud
+    container_name: gigshield-ml-fraud
+    ports:
+      - '8000:8000'
+    environment:
+      LOG_LEVEL: info
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8000/health']
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
 volumes:
   pgdata:

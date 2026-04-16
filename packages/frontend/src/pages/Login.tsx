@@ -1,8 +1,10 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { auth } from '../api/client';
 import { useStore } from '../store/store';
 import ThemeToggle from '../components/ThemeToggle';
+import LanguageSwitcher from '../components/LanguageSwitcher';
 
 type Stage = 'register' | 'otp' | 'verifying';
 
@@ -16,6 +18,7 @@ const TOTAL_STEPS = 6;
 
 export default function Login() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const login = useStore((s) => s.login);
   const [stage, setStage] = useState<Stage>('register');
   const [mobile, setMobile] = useState('');
@@ -105,16 +108,16 @@ export default function Login() {
   return (
     <div className="min-h-screen flex flex-col px-6 py-8" style={{ background: 'var(--bg-primary)' }}>
       {/* Theme Toggle */}
-      <div className="flex justify-end mb-2"><ThemeToggle /></div>
+      <div className="flex justify-end gap-2 mb-2"><LanguageSwitcher /><ThemeToggle /></div>
 
       {/* Header */}
       <div className="mb-6 slide-up">
         <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
-          {stage === 'register' ? 'Get Started' : 'Verify Mobile'}
+          {stage === 'register' ? t('login.title') : t('login.verify')}
         </h1>
         <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
           Step {currentStep} of {TOTAL_STEPS} &mdash;{' '}
-          {stage === 'register' ? 'Verify Your Identity' : 'Enter OTP'}
+          {stage === 'register' ? t('login.title') : t('login.otp_label')}
         </p>
       </div>
 
@@ -138,7 +141,7 @@ export default function Login() {
         <div className="flex-1 fade-in">
           {/* Platform picker */}
           <label className="text-xs font-medium mb-3 block" style={{ color: 'var(--text-secondary)' }}>
-            Select Your Platform
+            {t('login.platform_label')}
           </label>
           <div className="grid grid-cols-3 gap-3 mb-6">
             {PLATFORMS.map((p) => {
@@ -165,7 +168,7 @@ export default function Login() {
 
           {/* Phone input */}
           <label className="text-xs font-medium mb-2 block" style={{ color: 'var(--text-secondary)' }}>
-            Mobile Number
+            {t('login.mobile_label')}
           </label>
           <div className="flex items-center gap-2 mb-6">
             <div className="glass px-4 py-3 text-sm font-semibold shrink-0" style={{ color: 'var(--text-primary)' }}>
@@ -177,7 +180,7 @@ export default function Login() {
               maxLength={10}
               value={mobile}
               onChange={(e) => setMobile(e.target.value.replace(/\D/g, ''))}
-              placeholder="Enter 10-digit number"
+              placeholder={t('login.mobile_placeholder')}
               className="input-style flex-1"
             />
           </div>
@@ -191,11 +194,11 @@ export default function Login() {
             {loading ? (
               <>
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Sending...
+                {t('common.loading')}
               </>
             ) : (
               <>
-                Verify & Continue
+                {t('login.verify')}
                 <i className="ri-arrow-right-line" />
               </>
             )}
@@ -213,10 +216,10 @@ export default function Login() {
             </div>
             <div>
               <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                OTP sent to +91 {maskedMobile}
+                {t('login.otp_sent')} +91 {maskedMobile}
               </p>
               <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                Enter the 4-digit code
+                {t('login.otp_label')}
               </p>
             </div>
           </div>
@@ -249,11 +252,11 @@ export default function Login() {
             {loading ? (
               <>
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Verifying...
+                {t('common.loading')}
               </>
             ) : (
               <>
-                Verify OTP
+                {t('login.verify')}
                 <i className="ri-check-line" />
               </>
             )}
@@ -266,7 +269,7 @@ export default function Login() {
               className="w-full mt-4 text-sm"
               style={{ color: 'var(--text-secondary)' }}
             >
-              Change number
+              {t('login.resend')}
             </button>
           )}
         </div>

@@ -9,9 +9,13 @@ import {
 import type { BASBreakdown } from '@gigshield/shared';
 
 // ----------------------------------------------------------------
-// Weights for BAS components
+// Adaptive BAS Weights
+// Base weights represent our initial threat model. In production these
+// evolve via a feedback loop: confirmed fraud cases increase the weight
+// of the component that caught them, false positives decrease it.
+// For now we store the base weights and apply a fraud-rate adjustment.
 // ----------------------------------------------------------------
-const WEIGHTS = {
+const BASE_WEIGHTS = {
   gps_authenticity: 0.30,
   movement_entropy: 0.15,
   device_consistency: 0.15,
@@ -19,6 +23,51 @@ const WEIGHTS = {
   ring_fraud_absence: 0.10,
   weather_correlation: 0.10,
 };
+
+// Adaptive multiplier: components that caught recent fraud get boosted.
+// This is recalculated per-evaluation based on recent 30-day fraud patterns.
+async function getAdaptiveWeights(): Promise<typeof BASE_WEIGHTS> {
+  try {
+    // Count which flags appeared most in recent confirmed fraud (last 30 days)
+    const recentFraud = await db('claims')
+      .where('fraud_score', '>', 50)
+      .where('created_at', '>', new Date(Date.now() - 30 * 86400000))
+      .select('fraud_check_details');
+
+    if (recentFraud.length < 3) return BASE_WEIGHTS; // not enough data to adapt
+
+    let gpsFlags = 0, deviceFlags = 0, ringFlags = 0;
+    for (const row of recentFraud) {
+      const details = typeof row.fraud_check_details === 'string'
+        ? JSON.parse(row.fraud_check_details) : row.fraud_check_details;
+      const flags: string[] = details?.flags || [];
+      if (flags.some(f => f.includes('IMPOSSIBLE_TRAVEL') || f.includes('GPS_FAR'))) gpsFlags++;
+      if (flags.some(f => f.includes('NEW_DEVICE') || f.includes('SHARED_DEVICE'))) deviceFlags++;
+      if (flags.some(f => f.includes('RING_FRAUD') || f.includes('HIGH_CLAIM'))) ringFlags++;
+    }
+
+    const total = recentFraud.length;
+    // Boost weights proportional to how often that attack vector appears
+    const weights = { ...BASE_WEIGHTS };
+    if (gpsFlags / total > 0.5) weights.gps_authenticity = Math.min(0.40, weights.gps_authenticity + 0.05);
+    if (deviceFlags / total > 0.3) weights.device_consistency = Math.min(0.25, weights.device_consistency + 0.05);
+    if (ringFlags / total > 0.2) weights.ring_fraud_absence = Math.min(0.20, weights.ring_fraud_absence + 0.05);
+
+    // Renormalize to sum to 1.0
+    const sum = Object.values(weights).reduce((a, b) => a + b, 0);
+    for (const key of Object.keys(weights) as (keyof typeof weights)[]) {
+      weights[key] = weights[key] / sum;
+    }
+    return weights;
+  } catch {
+    return BASE_WEIGHTS;
+  }
+}
+
+// Human speed constraints for movement validation
+const MAX_HUMAN_SPEED_KMH = 120; // motorcycle max reasonable speed
+const MAX_WALKING_SPEED_KMH = 7;
+const ACCELERATION_LIMIT_KMH_PER_MIN = 60; // 0 to 60km/h in 1 min
 
 // ----------------------------------------------------------------
 // Sub-score computations
@@ -374,6 +423,9 @@ export async function analyzeWorkerBehavior(
     computeRingFraudAbsence(workerId, flags),
     computeWeatherCorrelation(workerId, flags),
   ]);
+
+  // Get adaptive weights (evolves based on recent fraud patterns)
+  const WEIGHTS = await getAdaptiveWeights();
 
   const total = Math.round(
     gpsScore * WEIGHTS.gps_authenticity +

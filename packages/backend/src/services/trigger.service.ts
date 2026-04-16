@@ -8,6 +8,7 @@ import {
 } from '@gigshield/shared';
 import type { DisruptionType, Severity, DisruptionEvent } from '@gigshield/shared';
 import { randomUUID } from 'crypto';
+import { events } from './events.service.js';
 
 // ----------------------------------------------------------------
 // Helpers
@@ -175,6 +176,17 @@ export async function createManualEvent(
   });
 
   const event = await db('disruption_events').where({ id }).first();
+
+  try {
+    events.emitEvent('TRIGGER_FIRED', {
+      event_id: event.id,
+      event_type: eventType,
+      severity,
+      zone_id: zoneId,
+      source: 'ADMIN_TRIGGER',
+    });
+  } catch {}
+
   return event as DisruptionEvent;
 }
 

@@ -1,9 +1,13 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
+import confetti from 'canvas-confetti';
 import { worker, policy, claims as claimsApi, triggers, demo } from '../api/client';
 import { useTheme } from '../hooks/useTheme';
 import { useGeolocation } from '../hooks/useGeolocation';
 import CoverageMap from '../components/CoverageMap';
+import ReportConditionModal from '../components/ReportConditionModal';
 import { generatePolicyPDF } from '../utils/generatePolicyPDF';
 
 type Tab = 'dashboard' | 'claims' | 'map' | 'profile';
@@ -30,15 +34,16 @@ const BAS_TIER_COLORS: Record<string, { bg: string; text: string }> = {
   RED: { bg: 'rgba(239,68,68,0.15)', text: '#ef4444' },
 };
 
-const NAV_ITEMS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: 'ri-dashboard-line' },
-  { id: 'claims', label: 'Claims', icon: 'ri-file-list-3-line' },
-  { id: 'map', label: 'Map', icon: 'ri-map-pin-line' },
-  { id: 'profile', label: 'Profile', icon: 'ri-user-line' },
+const NAV_ITEMS: { id: Tab; labelKey: string; icon: string }[] = [
+  { id: 'dashboard', labelKey: 'dashboard.tabs_dashboard', icon: 'ri-dashboard-line' },
+  { id: 'claims', labelKey: 'dashboard.tabs_claims', icon: 'ri-file-list-3-line' },
+  { id: 'map', labelKey: 'dashboard.tabs_map', icon: 'ri-map-pin-line' },
+  { id: 'profile', labelKey: 'dashboard.tabs_profile', icon: 'ri-user-line' },
 ];
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>('dashboard');
   const [me, setMe] = useState<any>(null);
   const [activePolicy, setActivePolicy] = useState<any>(null);
@@ -47,11 +52,13 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [autoRenew, setAutoRenew] = useState(false);
   const [demoMode, setDemoMode] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const [demoResults, setDemoResults] = useState<Record<string, any>>({});
   const [demoLoading, setDemoLoading] = useState<Record<string, boolean>>({});
   const { isDark, toggle, mapTile } = useTheme();
   const hasActivePolicy = !!activePolicy;
   const geoState = useGeolocation(hasActivePolicy);
+  const claimsSnapshotRef = useRef<Record<string, string>>({});
 
   // fetchData is now inlined in the useEffect below
 
@@ -106,6 +113,58 @@ export default function Dashboard() {
     }, 30_000);
     return () => { mounted = false; clearInterval(interval); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Claims polling every 30s — detect status changes and notify
+  useEffect(() => {
+    let mounted = true;
+
+    const pollClaims = async () => {
+      try {
+        const res = await claimsApi.getClaims();
+        if (!mounted) return;
+        const all: any[] = Array.isArray(res.data) ? res.data : res.data?.claims || [];
+        const prevSnap = claimsSnapshotRef.current;
+        const nextSnap: Record<string, string> = {};
+
+        for (const c of all) {
+          const id: string = c.id;
+          const status: string = c.status;
+          nextSnap[id] = status;
+          const prevStatus = prevSnap[id];
+          // only announce when status changed (or it's newly seen after first snapshot)
+          if (prevStatus && prevStatus !== status) {
+            if (status === 'PAID') {
+              const amount = c.income_loss_payout ?? c.payout_amount ?? 0;
+              toast.success(`🎉 ₹${amount} received! ${c.disruption_type || 'Disruption'}`);
+              try {
+                confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+              } catch { /* ignore */ }
+            } else if (status === 'APPROVED') {
+              toast(`Claim ${c.claim_number || ''} approved — payout processing`);
+            } else if (status === 'UNDER_REVIEW') {
+              toast.info('Claim submitted, admin reviewing');
+            }
+          }
+        }
+
+        claimsSnapshotRef.current = nextSnap;
+        setRecentClaims(all.slice(0, 5));
+      } catch {
+        /* silent */
+      }
+    };
+
+    // seed snapshot from current recentClaims (don't trigger toasts on first mount)
+    if (Object.keys(claimsSnapshotRef.current).length === 0 && recentClaims.length > 0) {
+      const seed: Record<string, string> = {};
+      for (const c of recentClaims) seed[c.id] = c.status;
+      claimsSnapshotRef.current = seed;
+    }
+
+    const id = setInterval(pollClaims, 30_000);
+    return () => { mounted = false; clearInterval(id); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleAutoRenewToggle = async () => {
@@ -168,7 +227,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-6 slide-up">
             <div>
               <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
-                Hi, {(me?.name || 'Worker').split(' ')[0]} <span className="text-xl">&#128075;</span>
+                {t('dashboard.greeting')}, {(me?.name || 'Worker').split(' ')[0]} <span className="text-xl">&#128075;</span>
               </h1>
               <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
                 {weather?.city || 'Loading...'} &middot; {me?.platform}
@@ -330,7 +389,7 @@ export default function Dashboard() {
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <i className="ri-shield-check-line text-lg" style={{ color: 'var(--success)' }} />
-                  <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Active Policy</h3>
+                  <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>{t('dashboard.policy_title')}</h3>
                 </div>
                 <span className="px-2 py-1 rounded-full text-[10px] font-bold capitalize" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }}>
                   {activePolicy.coverage_level} &middot; {activePolicy.policy_number}
@@ -338,19 +397,19 @@ export default function Dashboard() {
               </div>
               <div className="grid grid-cols-3 gap-3 mb-4">
                 <div className="p-3 rounded-xl" style={{ background: 'var(--bg-card)' }}>
-                  <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Coverage</p>
+                  <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{t('dashboard.coverage_label')}</p>
                   <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                     {activePolicy.coverage_level === 'basic' ? '50' : activePolicy.coverage_level === 'standard' ? '75' : '100'}%
                   </p>
                 </div>
                 <div className="p-3 rounded-xl" style={{ background: 'var(--bg-card)' }}>
-                  <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Premium</p>
+                  <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{t('dashboard.premium_label')}</p>
                   <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                     &#8377;{Number(activePolicy.weekly_premium).toFixed(0)}/wk
                   </p>
                 </div>
                 <div className="p-3 rounded-xl" style={{ background: 'var(--bg-card)' }}>
-                  <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Expires</p>
+                  <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{t('dashboard.expires_label')}</p>
                   <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                     {activePolicy.coverage_period_end
                       ? new Date(activePolicy.coverage_period_end).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
@@ -359,7 +418,7 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="flex items-center justify-between pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-                <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>Auto-renew</span>
+                <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{t('dashboard.auto_renew')}</span>
                 <button
                   onClick={handleAutoRenewToggle}
                   className="relative w-11 h-6 rounded-full transition-colors"
@@ -405,30 +464,39 @@ export default function Dashboard() {
                 className="w-full mt-3 py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 transition-all"
                 style={{ background: 'var(--bg-card)', color: 'var(--accent)', border: '1px solid var(--border)' }}
               >
-                <i className="ri-file-pdf-2-line" /> Download Policy Copy
+                <i className="ri-file-pdf-2-line" /> {t('dashboard.download_pdf')}
               </button>
-              <button
-                onClick={() => navigate('/claims?request=true')}
-                className="w-full mt-2 py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5"
-                style={{ background: 'var(--accent-light)', color: 'var(--accent)' }}
-              >
-                <i className="ri-add-circle-line" /> Request a Claim
-              </button>
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                <button
+                  onClick={() => navigate('/claims?request=true')}
+                  className="py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5"
+                  style={{ background: 'var(--accent-light)', color: 'var(--accent)' }}
+                >
+                  <i className="ri-add-circle-line" /> {t('dashboard.request_claim')}
+                </button>
+                <button
+                  onClick={() => setReportOpen(true)}
+                  className="py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5"
+                  style={{ background: 'rgba(249,115,22,0.12)', color: '#f97316', border: '1px solid rgba(249,115,22,0.3)' }}
+                >
+                  <i className="ri-rainy-line" /> {t('dashboard.report_condition')}
+                </button>
+              </div>
             </div>
           ) : (
             <div className="glass p-5 mb-6 slide-up text-center" style={{ animationDelay: '0.15s' }}>
               <div className="w-14 h-14 rounded-full mx-auto mb-3 flex items-center justify-center" style={{ background: 'var(--accent-light)' }}>
                 <i className="ri-shield-line text-2xl" style={{ color: 'var(--accent)' }} />
               </div>
-              <h3 className="font-semibold text-sm mb-1" style={{ color: 'var(--text-primary)' }}>No Active Policy</h3>
+              <h3 className="font-semibold text-sm mb-1" style={{ color: 'var(--text-primary)' }}>{t('dashboard.no_policy_title')}</h3>
               <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
-                Get covered against weather disruptions, extreme heat, floods, and more.
+                {t('dashboard.no_policy_desc')}
               </p>
               <button
                 onClick={() => navigate('/coverage')}
                 className="btn-primary w-full flex items-center justify-center gap-2"
               >
-                <i className="ri-shield-star-line" /> Get Coverage Now
+                <i className="ri-shield-star-line" /> {t('dashboard.get_coverage')}
               </button>
             </div>
           )}
@@ -438,17 +506,17 @@ export default function Dashboard() {
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
                 <i className="ri-file-list-3-line mr-1.5" style={{ color: 'var(--accent)' }} />
-                Recent Claims
+                {t('dashboard.recent_claims')}
               </h3>
               <button onClick={() => navigate('/claims')} className="text-xs" style={{ color: 'var(--accent)' }}>
-                View all
+                {t('dashboard.view_all')}
               </button>
             </div>
             {recentClaims.length === 0 ? (
               <div className="glass p-6 text-center">
                 <i className="ri-shield-check-line text-3xl mb-2" style={{ color: 'var(--text-muted)' }} />
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  No claims yet. Your policy will protect you automatically.
+                  {t('dashboard.no_claims')}
                 </p>
               </div>
             ) : (
@@ -530,6 +598,9 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Report Condition Modal */}
+      <ReportConditionModal open={reportOpen} onClose={() => setReportOpen(false)} />
+
       {/* Bottom Navigation */}
       <nav
         className="fixed bottom-0 inset-x-0 backdrop-blur-lg px-6 py-2 flex justify-around z-50"
@@ -538,21 +609,21 @@ export default function Dashboard() {
           borderTop: '1px solid var(--border)',
         }}
       >
-        {NAV_ITEMS.map((t) => {
-          const active = tab === t.id;
+        {NAV_ITEMS.map((navItem) => {
+          const active = tab === navItem.id;
           return (
             <button
-              key={t.id}
+              key={navItem.id}
               onClick={() => {
-                if (t.id === 'claims') navigate('/claims');
-                else if (t.id === 'profile') navigate('/profile');
-                else setTab(t.id);
+                if (navItem.id === 'claims') navigate('/claims');
+                else if (navItem.id === 'profile') navigate('/profile');
+                else setTab(navItem.id);
               }}
               className="flex flex-col items-center gap-0.5 py-1 px-3 transition-colors"
             >
-              <i className={`${t.icon} text-xl`} style={{ color: active ? 'var(--accent)' : 'var(--text-muted)' }} />
+              <i className={`${navItem.icon} text-xl`} style={{ color: active ? 'var(--accent)' : 'var(--text-muted)' }} />
               <span className="text-[10px] font-medium" style={{ color: active ? 'var(--accent)' : 'var(--text-muted)' }}>
-                {t.label}
+                {t(navItem.labelKey)}
               </span>
             </button>
           );

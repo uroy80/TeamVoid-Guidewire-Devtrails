@@ -1,6 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Toaster } from 'sonner';
 import { useStore } from './store/store';
 import { lazy, Suspense, type ReactNode } from 'react';
+import './i18n';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // ── Lazy-loaded pages ───────────────────────────────────────
 const Welcome = lazy(() => import('./pages/Welcome'));
@@ -15,6 +18,7 @@ const FraudReview = lazy(() => import('./pages/FraudReview'));
 const AdminLogin = lazy(() => import('./pages/admin/AdminLogin'));
 const Demo = lazy(() => import('./pages/Demo'));
 const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'));
+const Actuarial = lazy(() => import('./pages/admin/Actuarial'));
 
 // ── Loading spinner ─────────────────────────────────────────
 function LoadingFallback() {
@@ -59,7 +63,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <div className="app-shell">
+        <Toaster position="top-right" richColors theme="dark" />
         <Suspense fallback={<LoadingFallback />}>
+          <ErrorBoundary>
           <Routes>
             {/* Public */}
             <Route path="/" element={<Splash />} />
@@ -121,10 +127,19 @@ export default function App() {
                 </AdminRoute>
               }
             />
+            <Route
+              path="/admin/actuarial"
+              element={
+                <AdminRoute>
+                  <Actuarial />
+                </AdminRoute>
+              }
+            />
 
             {/* Catch-all */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </ErrorBoundary>
         </Suspense>
       </div>
     </BrowserRouter>

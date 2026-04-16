@@ -2,6 +2,7 @@ import { db } from '../config/database.js';
 import { computePayout, COVERAGE_TIERS } from '@gigshield/shared';
 import type { Claim, CoverageLevel } from '@gigshield/shared';
 import { randomUUID } from 'crypto';
+import { events } from './events.service.js';
 
 function generateClaimNumber(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -73,6 +74,16 @@ export async function processDisruptionEvent(eventId: string): Promise<Claim[]> 
 
     const claim = await db('claims').where({ id }).first();
     claims.push(claim as Claim);
+
+    try {
+      events.emitEvent('CLAIM_CREATED', {
+        claim_id: claim.id,
+        claim_number: claim.claim_number,
+        worker_id: claim.worker_id,
+        payout: claim.income_loss_payout,
+        source: 'AUTO',
+      });
+    } catch {}
   }
 
   return claims;
@@ -158,6 +169,16 @@ export async function requestClaim(
     ip_address: ipAddress || null,
     recorded_at: new Date(),
   });
+
+  try {
+    events.emitEvent('CLAIM_CREATED', {
+      claim_id: claim.id,
+      claim_number: claim.claim_number,
+      worker_id: claim.worker_id,
+      payout: claim.income_loss_payout,
+      source: 'MANUAL',
+    });
+  } catch {}
 
   return claim;
 }

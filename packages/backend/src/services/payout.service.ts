@@ -2,6 +2,7 @@ import { db } from '../config/database.js';
 import { disburse } from '../external/razorpay.mock.js';
 import type { Payout } from '@gigshield/shared';
 import { randomUUID } from 'crypto';
+import { events } from './events.service.js';
 
 export async function processPayout(claimId: string): Promise<Payout> {
   const claim = await db('claims').where({ id: claimId }).first();
@@ -72,6 +73,17 @@ export async function processPayout(claimId: string): Promise<Payout> {
   }
 
   const payout = await db('payouts').where({ id: payoutId }).first();
+
+  try {
+    events.emitEvent('PAYOUT_SENT', {
+      claim_id: claimId,
+      amount,
+      status: result.success ? 'SUCCESS' : 'FAILED',
+      transaction_ref: result.transactionRef,
+      worker_id: claim.worker_id,
+    });
+  } catch {}
+
   return payout as Payout;
 }
 
