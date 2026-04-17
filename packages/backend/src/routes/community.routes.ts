@@ -12,6 +12,10 @@ const reportSchema = z.object({
   condition_type: z.enum(['RAIN', 'FLOOD', 'HEAT', 'POLLUTION', 'STRIKE']),
   severity: z.enum(['MILD', 'MODERATE', 'SEVERE']).default('MODERATE'),
   notes: z.string().max(500).optional(),
+  // Client-sourced device fingerprint. Used as the *primary* distinct-ness
+  // signal when detecting community clusters — distinct IPs alone can be
+  // faked by a single phone on 3 Wi-Fi networks, distinct devices can't.
+  device_fingerprint: z.string().max(256).optional(),
 });
 
 /**
@@ -39,6 +43,7 @@ router.post('/report', requireAuth, validate(reportSchema), async (req: AuthRequ
       severity: req.body.severity,
       notes: req.body.notes,
       ipAddress,
+      deviceFingerprint: req.body.device_fingerprint,
     });
 
     res.status(201).json(result);

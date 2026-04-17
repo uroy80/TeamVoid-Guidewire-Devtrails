@@ -6,6 +6,7 @@ import cron from 'node-cron';
 import { env } from './config/env.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { httpLogger } from './middleware/httpLogger.js';
+import { ipLogger } from './middleware/ipLogger.js';
 import { metricsMiddleware, metricsHandler } from './middleware/metrics.js';
 import { authLimiter, claimLimiter, reportLimiter, generalLimiter } from './middleware/rateLimit.js';
 import authRoutes from './routes/auth.routes.js';
@@ -43,6 +44,11 @@ app.get('/metrics', metricsHandler);
 
 // Global rate limit backstop (keyed by worker id when authenticated, else IP).
 app.use(generalLimiter);
+
+// IP logger — zero-latency (`res.on('finish')`) hook that records every
+// authenticated (worker_id, ip) pairing into `worker_ip_log`. Powers the
+// ring-fraud "shared IP" detector in linkage.service.
+app.use(ipLogger);
 
 // Health check
 app.get('/api/health', (_req, res) => {

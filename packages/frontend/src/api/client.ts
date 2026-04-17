@@ -212,6 +212,9 @@ export const admin = {
   getClaimAIAssessment: (id: string) => api.get(`/admin/claims/${id}/ai-assessment`),
   getHeatmap: () => api.get('/admin/heatmap'),
   resetAll: () => api.post('/admin/reset'),
+  // ── Ring-fraud linkage ───────────────────────────────────
+  getWorkerLinkage: (id: string) => api.get(`/admin/workers/${id}/linkage`),
+  getRingFraudHotspots: () => api.get('/admin/ring-fraud/hotspots'),
   // ── Actuarial (Wave 2) ───────────────────────────────────
   getActuarialOverview: () => api.get('/admin/actuarial/overview'),
   getActuarialByZone: () => api.get('/admin/actuarial/by-zone'),

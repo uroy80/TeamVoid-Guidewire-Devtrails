@@ -9,6 +9,8 @@ import {
   LOYALTY_DISCOUNT,
 } from '@gigshield/shared';
 import type { CoverageLevel, Policy, WorkerProfile } from '@gigshield/shared';
+import { AppError } from '../middleware/errorHandler.js';
+import { checkUpiCollision } from './linkage.service.js';
 import { events } from './events.service.js';
 
 function buildWorkerProfile(worker: Record<string, any>, zone: Record<string, any>): WorkerProfile {
@@ -72,6 +74,21 @@ export async function create(
 
   const zone = await db('delivery_zones').where({ id: worker.delivery_zone_id }).first();
   if (!zone) throw new Error('Delivery zone not found');
+
+  // ── Ring-fraud guardrail: UPI deduplication ──────────────────────────
+  // A UPI handle already tied to 2+ other worker accounts is the textbook
+  // payout-funnel pattern. Hard-block at 2+ collisions; at exactly 1 we
+  // still allow the policy (plausibly a family member's UPI) but stamp
+  // an audit trail so fraud ops can investigate if a pattern emerges.
+  const upiCollision = await checkUpiCollision(paymentUpi, workerId);
+  if (upiCollision.block) {
+    throw new AppError(
+      `This UPI is already registered to ${upiCollision.collision_count} other accounts. ` +
+      `For security, each UPI can only be used by up to one additional worker. ` +
+      `Please use a different UPI handle or contact support.`,
+      409,
+    );
+  }
 
   const profile = buildWorkerProfile(worker, zone);
   const riskScore = computeRiskScore(profile, zone.base_risk);
@@ -138,6 +155,11 @@ export async function create(
     metadata: JSON.stringify({
       payment_upi: paymentUpi,
       transaction_ref: transactionRef,
+      // Mark policies where the UPI was already in use by one other worker.
+      // Fraud ops filters on this to proactively audit borderline cases.
+      upi_collision_flag: upiCollision.flag_for_review,
+      upi_collision_count: upiCollision.collision_count,
+      upi_other_worker_ids: upiCollision.worker_ids,
     }),
   });
 

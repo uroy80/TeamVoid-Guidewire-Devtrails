@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { requireAuth, requireAdmin, type AuthRequest } from '../middleware/auth.js';
 import * as claimService from '../services/claim.service.js';
 import * as auditService from '../services/audit.service.js';
+import * as linkageService from '../services/linkage.service.js';
 import { db } from '../config/database.js';
 import {
   generateRiskNarrative,
@@ -150,6 +151,103 @@ router.get('/workers/:id', async (req: AuthRequest, res: Response) => {
     res.json({ worker, policies, claims, locations });
   } catch (err) {
     console.error('[AdminRoutes] Error fetching worker details:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /admin/workers/:id/linkage
+ * Full ring-fraud linkage graph: every other worker this one shares a
+ * device, IP, or UPI handle with. Used by the admin detail view to
+ * render the connection graph.
+ */
+router.get('/workers/:id/linkage', async (req: AuthRequest, res: Response) => {
+  try {
+    const linkage = await linkageService.analyzeWorkerLinkage(req.params.id);
+    res.json({ linkage });
+  } catch (err) {
+    console.error('[AdminRoutes] Error fetching worker linkage:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /admin/ring-fraud/hotspots
+ * Lists UPI handles / IPs / devices that currently connect 3+ workers.
+ * This is the "show me the rings" view for fraud ops.
+ */
+router.get('/ring-fraud/hotspots', async (_req: AuthRequest, res: Response) => {
+  try {
+    // UPI hotspots: a payment_upi tied to 3+ workers.
+    const upiRows = await db('workers')
+      .whereNotNull('payment_upi')
+      .groupBy('payment_upi')
+      .havingRaw('count(*) >= 3')
+      .select('payment_upi')
+      .count<{ payment_upi: string; count: string }[]>('id as count');
+
+    const upiHotspots = await Promise.all(
+      upiRows.map(async (r) => {
+        const workers = await db('workers')
+          .where({ payment_upi: r.payment_upi })
+          .select('id', 'name', 'mobile', 'platform', 'created_at');
+        return { payment_upi: r.payment_upi, workers };
+      }),
+    );
+
+    // Device hotspots: a fingerprint_hash tied to 3+ workers.
+    const deviceRows = await db('device_fingerprints')
+      .groupBy('fingerprint_hash')
+      .havingRaw('count(distinct worker_id) >= 3')
+      .select('fingerprint_hash')
+      .countDistinct<{ fingerprint_hash: string; count: string }[]>('worker_id as count');
+
+    const deviceHotspots = await Promise.all(
+      deviceRows.map(async (r) => {
+        const workers = await db('device_fingerprints as df')
+          .innerJoin('workers as w', 'df.worker_id', 'w.id')
+          .where('df.fingerprint_hash', r.fingerprint_hash)
+          .select('w.id', 'w.name', 'w.mobile', 'w.platform', 'w.created_at')
+          .distinctOn('w.id');
+        return { fingerprint_hash: r.fingerprint_hash, workers };
+      }),
+    );
+
+    // IP hotspots (last 7d): an IP seen by 3+ workers.
+    let ipHotspots: Array<{ ip_address: string; workers: unknown[] }> = [];
+    try {
+      const hasTable = await db.schema.hasTable('worker_ip_log');
+      if (hasTable) {
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const ipRows = await db('worker_ip_log')
+          .where('last_seen_at', '>=', sevenDaysAgo)
+          .groupBy('ip_address')
+          .havingRaw('count(distinct worker_id) >= 3')
+          .select('ip_address');
+
+        ipHotspots = await Promise.all(
+          ipRows.map(async (r) => {
+            const workers = await db('worker_ip_log as log')
+              .innerJoin('workers as w', 'log.worker_id', 'w.id')
+              .where('log.ip_address', r.ip_address)
+              .where('log.last_seen_at', '>=', sevenDaysAgo)
+              .select('w.id', 'w.name', 'w.mobile', 'w.platform', 'w.created_at')
+              .distinctOn('w.id');
+            return { ip_address: r.ip_address, workers };
+          }),
+        );
+      }
+    } catch (err) {
+      console.warn('[AdminRoutes] IP hotspot scan failed:', err);
+    }
+
+    res.json({
+      upi_hotspots: upiHotspots,
+      device_hotspots: deviceHotspots,
+      ip_hotspots: ipHotspots,
+    });
+  } catch (err) {
+    console.error('[AdminRoutes] Error computing ring-fraud hotspots:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -178,6 +178,7 @@ export async function requestClaim(
     request_device_fingerprint: deviceFingerprint || null,
     request_latitude: location.latitude,
     request_longitude: location.longitude,
+    request_ip: ipAddress || null,
   }).returning('*');
 
   // 8. Log the location ping from claim request with IP

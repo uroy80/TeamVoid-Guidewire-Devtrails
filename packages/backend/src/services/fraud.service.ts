@@ -3,6 +3,13 @@ import { haversineDistance, TRIGGER_THRESHOLDS } from '@gigshield/shared';
 import type { Claim, FraudCheckDetails, DisruptionType } from '@gigshield/shared';
 import { randomUUID } from 'crypto';
 import { analyzeWorkerBehavior } from './antispoofing.service.js';
+import {
+  analyzeWorkerLinkage,
+  detectSynchronousClaims,
+  detectZoneBurst,
+  SYNCHRONOUS_CLAIM_PENALTY,
+  ZONE_BURST_PENALTY,
+} from './linkage.service.js';
 import { events } from './events.service.js';
 import { env } from '../config/env.js';
 
@@ -116,6 +123,40 @@ export async function checkClaim(claimId: string, source?: 'AUTO' | 'MANUAL' | '
     if (!flags.includes(f)) flags.push(f);
   }
 
+  // ---- 4a. Ring-fraud linkage (shared UPI / device / IP) ----------------
+  // These three signals run in parallel — each is a single indexed query.
+  // Penalty is capped at MAX_LINKAGE_PENALTY inside analyzeWorkerLinkage
+  // so a single strong signal can't alone fabricate a RED claim, but the
+  // composite of all three can tip a borderline claim over.
+  const linkage = await analyzeWorkerLinkage(claim.worker_id);
+  fraudScore += linkage.penalty;
+  for (const f of linkage.flags) {
+    if (!flags.includes(f)) flags.push(f);
+  }
+
+  // ---- 4b. Synchronous-claim cluster detector --------------------------
+  // Multiple workers filing claims on the same event within 2 minutes is
+  // only suspicious when the cluster has existing device/IP/UPI links.
+  // A real rainstorm produces a natural burst of *unlinked* claims.
+  const syncResult = await detectSynchronousClaims(claim.disruption_event_id, 120);
+  if (syncResult.suspicious) {
+    fraudScore += SYNCHRONOUS_CLAIM_PENALTY;
+    flags.push(
+      `SYNCHRONOUS_CLAIM_CLUSTER: ${syncResult.claim_count} claims / ${syncResult.worker_count} linked workers in ${syncResult.window_seconds}s`,
+    );
+  }
+
+  // ---- 4c. Zone velocity burst detector --------------------------------
+  // Claim rate ≥ 5× this zone's 30-day baseline AND ≥ 5 claims in window.
+  // Also only runs when we have a zone — no-op on zone-less events.
+  const zoneBurst = zone?.id ? await detectZoneBurst(zone.id, 60) : null;
+  if (zoneBurst?.burst) {
+    fraudScore += ZONE_BURST_PENALTY;
+    flags.push(
+      `ZONE_VELOCITY_BURST: ${zoneBurst.current_count} claims vs ${zoneBurst.baseline_per_hour}/hr baseline (${zoneBurst.ratio}x)`,
+    );
+  }
+
   // Cap fraud score at 100
   fraudScore = Math.min(100, fraudScore);
 
@@ -188,6 +229,27 @@ export async function checkClaim(claimId: string, source?: 'AUTO' | 'MANUAL' | '
     ml_used?: boolean;
     ml_explanations?: unknown;
     ml_model_version?: string;
+    linkage?: {
+      distinct_linked_workers: number;
+      penalty: number;
+      shared_device_count: number;
+      shared_ip_count: number;
+      shared_upi_count: number;
+      flags: string[];
+    };
+    synchronous_cluster?: {
+      claim_count: number;
+      worker_count: number;
+      suspicious: boolean;
+      window_seconds: number;
+    };
+    zone_burst?: {
+      zone_id: string;
+      current_count: number;
+      baseline_per_hour: number;
+      ratio: number;
+      burst: boolean;
+    };
   } = {
     bas_score: bas.total,
     gps_authenticity: bas.gps_authenticity,
@@ -201,6 +263,31 @@ export async function checkClaim(claimId: string, source?: 'AUTO' | 'MANUAL' | '
     bas_breakdown: bas,
     rule_based_score: ruleBasedScore,
     ml_used: mlUsed,
+    linkage: {
+      distinct_linked_workers: linkage.distinct_linked_workers,
+      penalty: linkage.penalty,
+      shared_device_count: linkage.shared_devices.length,
+      shared_ip_count: linkage.shared_ips.length,
+      shared_upi_count: linkage.shared_upis.length,
+      flags: linkage.flags,
+    },
+    synchronous_cluster: {
+      claim_count: syncResult.claim_count,
+      worker_count: syncResult.worker_count,
+      suspicious: syncResult.suspicious,
+      window_seconds: syncResult.window_seconds,
+    },
+    ...(zoneBurst
+      ? {
+          zone_burst: {
+            zone_id: zoneBurst.zone_id,
+            current_count: zoneBurst.current_count,
+            baseline_per_hour: zoneBurst.baseline_per_hour,
+            ratio: zoneBurst.ratio,
+            burst: zoneBurst.burst,
+          },
+        }
+      : {}),
     ...(mlUsed && mlResult
       ? {
           ml_explanations: mlResult.top_factors,

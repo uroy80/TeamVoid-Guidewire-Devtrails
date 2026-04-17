@@ -33,6 +33,23 @@ interface WorkerDetail {
   created_at?: string;
 }
 
+interface LinkedWorker {
+  worker_id: string;
+  name: string;
+  mobile: string;
+  platform: string | null;
+  created_at: string;
+}
+interface WorkerLinkage {
+  worker_id: string;
+  shared_devices: Array<{ fingerprint_hash: string; workers: LinkedWorker[] }>;
+  shared_ips: Array<{ ip_address: string; workers: LinkedWorker[]; last_seen: string }>;
+  shared_upis: Array<{ payment_upi: string; workers: LinkedWorker[] }>;
+  distinct_linked_workers: number;
+  penalty: number;
+  flags: string[];
+}
+
 const PLATFORM_COLORS: Record<string, { bg: string; text: string }> = {
   blinkit: { bg: 'rgba(234,179,8,0.15)', text: '#eab308' },
   zepto: { bg: 'rgba(168,85,247,0.15)', text: '#a855f7' },
@@ -56,6 +73,8 @@ const AdminUsers: React.FC = () => {
   const [detailLoading, setDetailLoading] = useState(false);
   const [aiRisk, setAiRisk] = useState<string | null>(null);
   const [aiRiskLoading, setAiRiskLoading] = useState(false);
+  const [linkage, setLinkage] = useState<WorkerLinkage | null>(null);
+  const [linkageLoading, setLinkageLoading] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [deletePreview, setDeletePreview] = useState<{
     worker: { id: string; name: string; mobile_number: string };
@@ -91,11 +110,13 @@ const AdminUsers: React.FC = () => {
       setExpandedId(null);
       setWorkerDetail(null);
       setAiRisk(null);
+      setLinkage(null);
       return;
     }
     setExpandedId(id);
     setWorkerDetail(null);
     setAiRisk(null);
+    setLinkage(null);
     setDetailLoading(true);
     try {
       const res = await admin.getWorkerDetail(id);
@@ -105,16 +126,20 @@ const AdminUsers: React.FC = () => {
     } finally {
       setDetailLoading(false);
     }
-    // Fetch AI risk narrative
+    // Kick off AI narrative and linkage graph in parallel — each has its
+    // own loading state so the panel renders progressively.
     setAiRiskLoading(true);
-    try {
-      const res = await admin.getWorkerAIRisk(id);
-      setAiRisk(res.data?.narrative || res.data?.risk_narrative || JSON.stringify(res.data));
-    } catch {
-      setAiRisk('Failed to load AI risk assessment.');
-    } finally {
-      setAiRiskLoading(false);
-    }
+    setLinkageLoading(true);
+    admin
+      .getWorkerAIRisk(id)
+      .then((res) => setAiRisk(res.data?.narrative || res.data?.risk_narrative || JSON.stringify(res.data)))
+      .catch(() => setAiRisk('Failed to load AI risk assessment.'))
+      .finally(() => setAiRiskLoading(false));
+    admin
+      .getWorkerLinkage(id)
+      .then((res) => setLinkage(res.data?.linkage ?? null))
+      .catch(() => setLinkage(null))
+      .finally(() => setLinkageLoading(false));
   };
 
   const openDeleteConfirm = async (id: string) => {
@@ -495,6 +520,100 @@ const AdminUsers: React.FC = () => {
                                         </div>
                                       ) : (
                                         <p className="text-xs leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>{aiRisk || 'No AI risk data available.'}</p>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Ring-Fraud Linkage Graph */}
+                                  <div>
+                                    <p className="text-xs font-medium uppercase tracking-wider mb-2 flex items-center justify-between" style={{ color: 'var(--text-secondary)' }}>
+                                      <span>
+                                        <i className="ri-node-tree mr-1" />
+                                        Ring-Fraud Linkage
+                                      </span>
+                                      {linkage && linkage.distinct_linked_workers > 0 && (
+                                        <span
+                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                                          style={{
+                                            background: linkage.distinct_linked_workers >= 5 ? 'rgba(239,68,68,0.15)' : 'rgba(249,115,22,0.15)',
+                                            color: linkage.distinct_linked_workers >= 5 ? '#ef4444' : '#f97316',
+                                          }}
+                                        >
+                                          +{linkage.penalty} fraud penalty · {linkage.distinct_linked_workers} linked
+                                        </span>
+                                      )}
+                                    </p>
+                                    <div className="glass rounded-lg p-3 space-y-3" style={{ borderColor: 'var(--border)' }}>
+                                      {linkageLoading ? (
+                                        <div className="flex items-center gap-2 py-2">
+                                          <svg className="animate-spin h-4 w-4 text-indigo-400" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                          </svg>
+                                          <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>Computing linkage graph...</span>
+                                        </div>
+                                      ) : !linkage || linkage.distinct_linked_workers === 0 ? (
+                                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                                          <i className="ri-check-line mr-1 text-emerald-400" />
+                                          No shared devices, IPs, or UPI handles. This account is isolated.
+                                        </p>
+                                      ) : (
+                                        <>
+                                          {linkage.shared_upis.length > 0 && (
+                                            <div>
+                                              <p className="text-[10px] uppercase font-semibold mb-1 text-red-400">
+                                                Shared UPI · highest-severity signal
+                                              </p>
+                                              {linkage.shared_upis.map((u) => (
+                                                <div key={u.payment_upi} className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                                                  <span className="font-mono text-red-400">{u.payment_upi}</span>{' '}
+                                                  → also used by{' '}
+                                                  {u.workers.map((w, i) => (
+                                                    <React.Fragment key={w.worker_id}>
+                                                      {i > 0 && ', '}
+                                                      <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                        {w.name}
+                                                      </span>{' '}
+                                                      <span style={{ color: 'var(--text-muted)' }}>({w.mobile})</span>
+                                                    </React.Fragment>
+                                                  ))}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+
+                                          {linkage.shared_devices.length > 0 && (
+                                            <div>
+                                              <p className="text-[10px] uppercase font-semibold mb-1 text-orange-400">Shared device fingerprint</p>
+                                              {linkage.shared_devices.map((d) => (
+                                                <div key={d.fingerprint_hash} className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                                                  <span className="font-mono text-orange-400">{d.fingerprint_hash.slice(0, 12)}…</span>{' '}
+                                                  → {d.workers.length} other worker{d.workers.length === 1 ? '' : 's'}:{' '}
+                                                  {d.workers.map((w, i) => (
+                                                    <React.Fragment key={w.worker_id}>
+                                                      {i > 0 && ', '}
+                                                      <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                        {w.name}
+                                                      </span>
+                                                    </React.Fragment>
+                                                  ))}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+
+                                          {linkage.shared_ips.length > 0 && (
+                                            <div>
+                                              <p className="text-[10px] uppercase font-semibold mb-1 text-amber-400">Shared IP (last 7 days)</p>
+                                              {linkage.shared_ips.slice(0, 5).map((i) => (
+                                                <div key={i.ip_address} className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                                                  <span className="font-mono text-amber-400">{i.ip_address}</span>{' '}
+                                                  → {i.workers.length} other worker{i.workers.length === 1 ? '' : 's'}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </>
                                       )}
                                     </div>
                                   </div>

@@ -25,9 +25,10 @@ const TRUST_BOOST_ON_CLUSTER = 5;
 // three reports from the same phone, same home network, or three fresh
 // sock-puppet accounts. These guardrails make a real community signal hard
 // to fake without real people in real places.
-const MIN_TRUST_SCORE_TO_COUNT = 25;          // worker's trust must be ≥ this
-const MIN_ACCOUNT_AGE_HOURS    = 1;           // worker must have existed ≥ this
-const CLUSTER_MIN_DISTINCT_IPS = 3;           // must come from ≥ N unique IPs
+const MIN_TRUST_SCORE_TO_COUNT     = 25;      // worker's trust must be ≥ this
+const MIN_ACCOUNT_AGE_HOURS        = 1;       // worker must have existed ≥ this
+const CLUSTER_MIN_DISTINCT_IPS     = 3;       // must come from ≥ N unique IPs
+const CLUSTER_MIN_DISTINCT_DEVICES = 3;       // AND ≥ N unique devices (can't fake with one phone)
 
 export interface SubmitReportInput {
   workerId: string;
@@ -37,6 +38,7 @@ export interface SubmitReportInput {
   severity: Severity;
   notes?: string;
   ipAddress?: string;
+  deviceFingerprint?: string;
 }
 
 /**
@@ -52,8 +54,20 @@ export async function submitReport(input: SubmitReportInput): Promise<{
 }> {
   const {
     workerId, latitude, longitude, conditionType, severity,
-    notes, ipAddress,
+    notes, ipAddress, deviceFingerprint,
   } = input;
+
+  // Fall back to the worker's most recent known device fingerprint when the
+  // client didn't send one — this keeps old clients from quietly passing the
+  // distinct-device check by sending nulls.
+  let deviceFp: string | null = deviceFingerprint ?? null;
+  if (!deviceFp) {
+    const recentFp = await db('device_fingerprints')
+      .where({ worker_id: workerId })
+      .orderBy('last_seen_at', 'desc')
+      .first();
+    if (recentFp?.fingerprint_hash) deviceFp = recentFp.fingerprint_hash;
+  }
 
   // Insert the report
   const [row] = await db('community_reports')
@@ -65,6 +79,7 @@ export async function submitReport(input: SubmitReportInput): Promise<{
       severity,
       notes: notes ?? null,
       ip_address: ipAddress ?? null,
+      device_fingerprint: deviceFp,
     })
     .returning('*');
 
@@ -83,21 +98,29 @@ export async function submitReport(input: SubmitReportInput): Promise<{
   // Check for a cluster
   const cluster = await findCluster(latitude, longitude, conditionType);
 
-  // Count DISTINCT workers and DISTINCT IP addresses. A collusion ring using
-  // three SIMs on one phone shows up as 3 reports but only 1 IP — which we
-  // treat as a single signal, not a confirmed cluster.
+  // Count DISTINCT workers, DISTINCT IP addresses, and DISTINCT device
+  // fingerprints. A collusion ring can produce 3 reports from one phone
+  // by juggling SIMs (→ 3 workers, 1 device) or from one account on 3
+  // Wi-Fi networks (→ 1 worker, 3 IPs). Requiring distinctness on both
+  // axes forces at least 3 real people standing in real places.
   const distinctWorkers = new Set(cluster.map((r) => r.worker_id)).size;
   const distinctIps = new Set(
     cluster.map((r) => r.ip_address).filter((ip): ip is string => !!ip),
+  ).size;
+  const distinctDevices = new Set(
+    cluster.map((r) => r.device_fingerprint).filter((fp): fp is string => !!fp),
   ).size;
 
   const clusterQualifies =
     cluster.length >= CLUSTER_MIN_REPORTS &&
     distinctWorkers >= CLUSTER_MIN_REPORTS &&
-    // When every report has a known IP we require N distinct IPs; if some
-    // reports are missing an IP (old data, proxy, etc.) we fall back to
-    // the distinct-worker check alone so legitimate clusters still fire.
-    (distinctIps === 0 || distinctIps >= CLUSTER_MIN_DISTINCT_IPS);
+    // When IPs are known for the cluster, require N distinct ones — when
+    // they're all nullable (very old records or proxied traffic) fall
+    // back to the distinct-worker check alone.
+    (distinctIps === 0 || distinctIps >= CLUSTER_MIN_DISTINCT_IPS) &&
+    // Same fallback strategy for devices. But in practice the fallback
+    // should fire only during migration: new reports always carry a FP.
+    (distinctDevices === 0 || distinctDevices >= CLUSTER_MIN_DISTINCT_DEVICES);
 
   if (clusterQualifies) {
     // Is there ALREADY a disruption event these reports are linked to?
@@ -199,6 +222,7 @@ async function findCluster(
   latitude: number;
   longitude: number;
   ip_address: string | null;
+  device_fingerprint: string | null;
 }>> {
   const windowMs = CLUSTER_WINDOW_MIN * 60 * 1000;
   const cutoff = new Date(Date.now() - windowMs);
@@ -226,6 +250,7 @@ async function findCluster(
       'cr.latitude',
       'cr.longitude',
       'cr.ip_address',
+      'cr.device_fingerprint',
     );
 
   // Precise haversine filter
