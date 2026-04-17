@@ -60,9 +60,38 @@ router.post('/verify-otp', validate(verifyOtpSchema), async (req: Request, res: 
     const normalizedMobile = mobile.replace(/^\+91/, '');
     const worker = await workerService.getByMobile(mobile) ?? await workerService.getByMobile(normalizedMobile);
 
+    // Issue a refresh-token pair so the frontend can rotate silently when the
+    // access token expires. If the worker doesn't yet exist (first-time register
+    // flow) we skip the pair — it will be issued after registration completes.
+    let refreshBundle: {
+      access_token: string;
+      refresh_token: string;
+      access_token_expires_in: number;
+      refresh_token_expires_in: number;
+    } | null = null;
+
+    if (worker) {
+      try {
+        const pair = await authService.issueTokens(
+          worker.id,
+          false,
+          (worker as { role?: import('../middleware/auth.js').WorkerRole }).role,
+        );
+        refreshBundle = {
+          access_token: pair.accessToken,
+          refresh_token: pair.refreshToken,
+          access_token_expires_in: pair.accessTokenExpiresIn,
+          refresh_token_expires_in: pair.refreshTokenExpiresIn,
+        };
+      } catch {
+        // Non-fatal — fall back to legacy single-token mode
+      }
+    }
+
     res.json({
       token,
       worker: worker ?? null,
+      ...(refreshBundle ?? {}),
     });
   } catch (err) {
     const error = err as Error & { statusCode?: number };

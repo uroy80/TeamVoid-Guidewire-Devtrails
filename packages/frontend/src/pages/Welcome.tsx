@@ -2,7 +2,6 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import ThemeToggle from '../components/ThemeToggle';
 import LanguageSwitcher from '../components/LanguageSwitcher';
-import HeroStats from '../components/HeroStats';
 
 export default function Welcome() {
   const navigate = useNavigate();
@@ -63,9 +62,6 @@ export default function Welcome() {
           {t('welcome.subtitle')}
         </p>
       </div>
-
-      {/* Live Hero Stats */}
-      <HeroStats />
 
       {/* Feature cards */}
       <div className="w-full max-w-sm space-y-3 mb-6">

@@ -56,6 +56,13 @@ const AdminUsers: React.FC = () => {
   const [aiRisk, setAiRisk] = useState<string | null>(null);
   const [aiRiskLoading, setAiRiskLoading] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deletePreview, setDeletePreview] = useState<{
+    worker: { id: string; name: string; mobile_number: string };
+    counts: Record<string, number>;
+    total: number;
+  } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -109,14 +116,42 @@ const AdminUsers: React.FC = () => {
     }
   };
 
+  const openDeleteConfirm = async (id: string) => {
+    setDeleteConfirmId(id);
+    setDeleteConfirmText('');
+    setDeletePreview(null);
+    setPreviewLoading(true);
+    try {
+      const res = await admin.getWorkerDeletePreview(id);
+      setDeletePreview(res.data);
+    } catch {
+      showToast('Failed to load delete preview', 'error');
+      setDeleteConfirmId(null);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
   const handleDelete = async (id: string) => {
+    if (!deletePreview) return;
+    const expected = deletePreview.worker.name.trim();
+    if (deleteConfirmText.trim() !== expected) {
+      showToast(`Type the worker's name exactly: "${expected}"`, 'error');
+      return;
+    }
     setDeleting(true);
     try {
-      await admin.deleteWorker(id);
+      const res = await admin.deleteWorker(id);
       setWorkers((prev) => prev.filter((w) => w.id !== id));
       setDeleteConfirmId(null);
+      setDeletePreview(null);
+      setDeleteConfirmText('');
       setExpandedId(null);
-      showToast('Worker deleted successfully', 'success');
+      const total = Object.values(res.data?.deleted ?? {}).reduce(
+        (a: number, b) => a + Number(b || 0),
+        0,
+      );
+      showToast(`Worker hard-deleted — ${total} rows removed across all tables`, 'success');
     } catch {
       showToast('Failed to delete worker', 'error');
     } finally {
@@ -161,34 +196,99 @@ const AdminUsers: React.FC = () => {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Confirmation Modal — cascade-aware */}
       {deleteConfirmId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}>
-          <div className="glass rounded-xl p-6 max-w-sm w-full mx-4">
-            <h3 className="font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Confirm Deletion</h3>
-            <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>Are you sure you want to delete this worker? This action cannot be undone.</p>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => handleDelete(deleteConfirmId)}
-                disabled={deleting}
-                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-500 disabled:bg-red-600/50 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
-              >
-                {deleting && (
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                )}
-                Delete
-              </button>
-              <button
-                onClick={() => setDeleteConfirmId(null)}
-                className="flex-1 px-4 py-2 rounded-lg text-sm transition-colors"
-                style={{ background: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}
-              >
-                Cancel
-              </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
+          <div className="glass rounded-xl p-6 max-w-md w-full" style={{ border: '1px solid rgba(239,68,68,0.4)' }}>
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(239,68,68,0.15)' }}>
+                <i className="ri-alert-line text-xl text-red-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-red-400">Permanent deletion</h3>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+                  This will hard-delete the worker and all associated records. This action cannot be undone.
+                </p>
+              </div>
             </div>
+
+            {previewLoading || !deletePreview ? (
+              <div className="py-6 text-center">
+                <svg className="animate-spin h-6 w-6 text-red-400 mx-auto" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                <p className="text-xs mt-3" style={{ color: 'var(--text-secondary)' }}>Loading impact preview...</p>
+              </div>
+            ) : (
+              <>
+                {/* Worker identity */}
+                <div className="rounded-lg p-3 mb-4" style={{ background: 'var(--bg-secondary)' }}>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Deleting</p>
+                  <p className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
+                    {deletePreview.worker.name || '(no name)'}
+                  </p>
+                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                    {deletePreview.worker.mobile_number}
+                  </p>
+                </div>
+
+                {/* Cascade impact */}
+                <p className="text-xs font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                  Rows that will also be deleted
+                </p>
+                <div className="rounded-lg p-3 mb-4 grid grid-cols-2 gap-2 text-xs" style={{ background: 'var(--bg-secondary)' }}>
+                  {Object.entries(deletePreview.counts).map(([k, v]) => (
+                    <div key={k} className="flex items-center justify-between">
+                      <span style={{ color: 'var(--text-secondary)' }}>{k.replace(/_/g, ' ')}</span>
+                      <span className={`font-mono font-semibold ${v > 0 ? 'text-red-400' : ''}`} style={v === 0 ? { color: 'var(--text-muted)' } : undefined}>
+                        {v}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] mb-4" style={{ color: 'var(--text-muted)' }}>
+                  Total dependent rows: <span className="font-mono font-semibold text-red-400">{deletePreview.total}</span>
+                </p>
+
+                {/* Name-typing confirmation */}
+                <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--text-secondary)' }}>
+                  Type the worker's name to confirm: <span className="font-mono text-red-400">{deletePreview.worker.name || '(no name)'}</span>
+                </label>
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="Type name here"
+                  className="input-style w-full mb-4"
+                  autoFocus
+                />
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => handleDelete(deleteConfirmId)}
+                    disabled={deleting || deleteConfirmText.trim() !== (deletePreview.worker.name || '').trim()}
+                    className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-500 disabled:bg-red-600/30 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                  >
+                    {deleting && (
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                    )}
+                    Permanently delete
+                  </button>
+                  <button
+                    onClick={() => { setDeleteConfirmId(null); setDeletePreview(null); setDeleteConfirmText(''); }}
+                    disabled={deleting}
+                    className="flex-1 px-4 py-2 rounded-lg text-sm transition-colors"
+                    style={{ background: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -303,7 +403,7 @@ const AdminUsers: React.FC = () => {
                                 {isExpanded ? 'Hide' : 'View'}
                               </button>
                               <button
-                                onClick={() => setDeleteConfirmId(w.id)}
+                                onClick={() => openDeleteConfirm(w.id)}
                                 className="px-3 py-1 bg-red-600/20 border border-red-500/30 text-red-400 rounded-lg text-xs font-medium hover:bg-red-600/30 transition-colors"
                               >
                                 Delete

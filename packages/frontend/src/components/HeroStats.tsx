@@ -1,6 +1,20 @@
 import { useEffect, useState } from 'react';
-import CountUp from 'react-countup';
+import * as CountUpNS from 'react-countup';
 import { publicApi } from '../api/client';
+
+// react-countup ships as pure CommonJS (`exports.default = CountUp`).
+// Under Vite's CJS→ESM interop the module's own default export is itself the
+// CJS exports object: `{default: Component, useCountUp}`. So we may need to
+// unwrap `.default` more than once until we land on a renderable function.
+function unwrapDefault(mod: any): any {
+  let m = mod;
+  // Safety cap at 3 hops — more than enough for real-world CJS interop.
+  for (let i = 0; i < 3 && m && typeof m === 'object' && 'default' in m; i++) {
+    m = m.default;
+  }
+  return m;
+}
+const CountUp: any = unwrapDefault(CountUpNS);
 
 interface StatsResponse {
   total_workers?: number;

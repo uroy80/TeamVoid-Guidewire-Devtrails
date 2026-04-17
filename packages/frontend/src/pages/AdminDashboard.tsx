@@ -534,9 +534,28 @@ const AdminDashboard: React.FC = () => {
                 </svg>
                 <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Generating AI insights...</span>
               </div>
-            ) : (
-              <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--text-primary)' }}>{aiInsights || 'No insights available.'}</p>
-            )}
+            ) : (() => {
+              const raw = aiInsights || '';
+              const bullets = raw
+                .split(/\r?\n|(?<=\.)\s+(?=[A-Z0-9])/)
+                .map((s) => s.trim().replace(/^[-*\u2022]\s*/, ''))
+                .filter((s) => s.length > 0);
+              if (bullets.length === 0) {
+                return (
+                  <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>No insights available.</p>
+                );
+              }
+              return (
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, paddingLeft: 16, lineHeight: 1.6 }}>
+                  {bullets.map((b, i) => (
+                    <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 6 }}>
+                      <i className="ri-arrow-right-s-line" style={{ color: '#a78bfa', fontSize: 16, marginTop: 1, flexShrink: 0 }} />
+                      <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{b}</span>
+                    </li>
+                  ))}
+                </ul>
+              );
+            })()}
           </div>
         </section>
 
@@ -745,6 +764,18 @@ const AdminDashboard: React.FC = () => {
                 <h3 className="font-semibold group-hover:text-blue-400 transition-colors" style={{ color: 'var(--text-primary)' }}>User Management</h3>
               </div>
               <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Manage workers, profiles, and risk tiers</p>
+            </Link>
+            <Link
+              to="/admin/claims"
+              className="glass card-hover rounded-xl p-5 hover:border-amber-500/30 transition-colors group"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-lg bg-amber-600/20 flex items-center justify-center">
+                  <i className="ri-file-list-3-line text-lg text-amber-400" />
+                </div>
+                <h3 className="font-semibold group-hover:text-amber-400 transition-colors" style={{ color: 'var(--text-primary)' }}>Claims</h3>
+              </div>
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Approve, reject, and review all claims</p>
             </Link>
             <a
               href="#audit"

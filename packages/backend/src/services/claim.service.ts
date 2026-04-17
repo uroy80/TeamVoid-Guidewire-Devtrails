@@ -110,10 +110,32 @@ export async function requestClaim(
   // 3. Get coverage tier config
   const coveragePct = { basic: 0.50, standard: 0.75, premium: 1.00 }[activePolicy.coverage_level as string] || 0.75;
 
-  // 4. Estimate disruption hours (manual claims default to 4 hours)
-  const disruptionHours = Math.min(4, Number(workerData.avg_hours_per_day) || 6);
+  // 4. Resolve duration from a recent matching disruption event (if any)
+  //    so the payout reflects the real impact, not a hard-coded 4 hours.
+  const recentEventForDuration = await db('disruption_events')
+    .where({ delivery_zone_id: workerData.delivery_zone_id, event_type: disruptionType.toUpperCase() })
+    .where('event_timestamp', '>', new Date(Date.now() - 24 * 60 * 60 * 1000))
+    .first();
+
+  const eventDurationHours = Number(recentEventForDuration?.duration_estimate_hours) || 4;
+  const avgHoursPerDay = Number(workerData.avg_hours_per_day) || 6;
+
+  // Cap base duration at one shift: min(event duration, avg hours/day, 8)
+  const baseDurationHours = Math.min(eventDurationHours, avgHoursPerDay, 8);
+
+  // Severity multiplier
+  const severity = String(recentEventForDuration?.severity || 'MODERATE').toUpperCase();
+  const severityMultiplier = severity === 'MILD' ? 0.5 : severity === 'SEVERE' ? 1.25 : 1.0;
+
+  // Effective hours, still capped at 8 after severity scaling
+  const effectiveHours = Math.min(8, baseDurationHours * severityMultiplier);
+  const disruptionHours = effectiveHours;
+
   const hourlyRate = Number(workerData.hourly_rate) || 120;
-  const payout = Math.max(100, Math.round(disruptionHours * hourlyRate * coveragePct));
+  // Apply coverage tier (basic=50%, standard=75%, premium=100%) then clamp
+  // between Rs. 100 floor and Rs. 2000 ceiling to prevent abuse and preserve UX.
+  const rawPayout = Math.round(hourlyRate * effectiveHours * coveragePct);
+  const payout = Math.max(100, Math.min(2000, rawPayout));
 
   // 5. Generate claim number
   const claimNumber = `CLM-${Math.floor(100000 + Math.random() * 900000)}`;

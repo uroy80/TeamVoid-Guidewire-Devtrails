@@ -155,16 +155,276 @@ router.get('/workers/:id', async (req: AuthRequest, res: Response) => {
 });
 
 /**
+ * GET /admin/workers/:id/delete-preview
+ * Returns counts of dependent rows that will be removed by a hard delete.
+ * Used by the frontend confirmation modal.
+ */
+router.get('/workers/:id/delete-preview', async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const worker = await db('workers').where('id', id).first();
+    if (!worker) {
+      res.status(404).json({ error: 'Worker not found' });
+      return;
+    }
+
+    // Count rows across each dependent table. Wrap optional tables in try/catch
+    // in case they haven't been migrated in some environments.
+    const countSafe = async (tableName: string, col: string = 'worker_id'): Promise<number> => {
+      try {
+        const r = await db(tableName).where(col, id).count('* as c').first();
+        return Number(r?.c ?? 0);
+      } catch {
+        return 0;
+      }
+    };
+
+    const [
+      payouts,
+      claims,
+      policies,
+      financial_ledger,
+      worker_location_log,
+      device_fingerprints,
+      community_reports,
+      refresh_tokens,
+    ] = await Promise.all([
+      countSafe('payouts'),
+      countSafe('claims'),
+      countSafe('policies'),
+      countSafe('financial_ledger'),
+      countSafe('worker_location_log'),
+      countSafe('device_fingerprints'),
+      countSafe('community_reports'),
+      countSafe('refresh_tokens'),
+    ]);
+
+    res.json({
+      worker: {
+        id: worker.id,
+        name: worker.name,
+        mobile_number: worker.mobile_number,
+      },
+      counts: {
+        payouts,
+        claims,
+        policies,
+        financial_ledger,
+        worker_location_log,
+        device_fingerprints,
+        community_reports,
+        refresh_tokens,
+      },
+      total: payouts + claims + policies + financial_ledger + worker_location_log +
+             device_fingerprints + community_reports + refresh_tokens,
+    });
+  } catch (err) {
+    console.error('[AdminRoutes] Error building delete preview:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
  * DELETE /admin/workers/:id
- * Soft delete a worker by setting is_verified to false
+ * Transactional hard delete: cascades across every table that references the worker,
+ * then appends an entry to the tamper-evident audit log.
  */
 router.delete('/workers/:id', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    await db('workers').where('id', id).update({ is_verified: false });
-    res.json({ success: true });
+
+    const worker = await db('workers').where('id', id).first();
+    if (!worker) {
+      res.status(404).json({ error: 'Worker not found' });
+      return;
+    }
+
+    // Helper: delete from a table only if it exists — the set of tables may vary
+    // between dev/prod/seed environments.
+    const delSafe = async (trx: any, tableName: string, col: string = 'worker_id') => {
+      try {
+        return await trx(tableName).where(col, id).del();
+      } catch {
+        return 0;
+      }
+    };
+
+    let summary: Record<string, number> = {};
+
+    await db.transaction(async (trx) => {
+      // Order matters: descendants first, then parents
+      summary.payouts = await delSafe(trx, 'payouts');
+      summary.claims = await delSafe(trx, 'claims');
+      summary.policies = await delSafe(trx, 'policies');
+      summary.financial_ledger = await delSafe(trx, 'financial_ledger');
+      summary.community_reports = await delSafe(trx, 'community_reports');
+      summary.device_fingerprints = await delSafe(trx, 'device_fingerprints');
+      summary.worker_location_log = await delSafe(trx, 'worker_location_log');
+      summary.refresh_tokens = await delSafe(trx, 'refresh_tokens');
+      summary.workers = await trx('workers').where('id', id).del();
+    });
+
+    // Append to tamper-evident audit log (best effort; don't fail the request)
+    try {
+      await auditService.appendAuditEntry({
+        actor_id: req.workerId ?? 'admin',
+        action: 'WORKER_HARD_DELETE',
+        resource_type: 'worker',
+        resource_id: id,
+        metadata: {
+          mobile_number: worker.mobile_number,
+          name: worker.name,
+          cascade_summary: summary,
+        },
+      });
+    } catch (auditErr) {
+      console.error('[AdminRoutes] Audit append failed (non-fatal):', auditErr);
+    }
+
+    res.json({ success: true, deleted: summary });
   } catch (err) {
-    console.error('[AdminRoutes] Error soft-deleting worker:', err);
+    console.error('[AdminRoutes] Error hard-deleting worker:', err);
+    res.status(500).json({ error: 'Internal server error: ' + (err as Error).message });
+  }
+});
+
+/**
+ * GET /admin/claims
+ * Paginated list of all claims for the admin Claims tab.
+ * Supports optional ?status= filter (PENDING, APPROVED, REJECTED, PAID, FLAGGED, UNDER_REVIEW).
+ */
+router.get('/claims', async (req: AuthRequest, res: Response) => {
+  try {
+    const { status, limit, offset } = req.query;
+    const pageLimit = Math.min(Number(limit) || 50, 200);
+    const pageOffset = Number(offset) || 0;
+
+    let query = db('claims as c')
+      .leftJoin('workers as w', 'c.worker_id', 'w.id')
+      .leftJoin('policies as p', 'c.policy_id', 'p.id')
+      .leftJoin('delivery_zones as dz', 'w.delivery_zone_id', 'dz.id')
+      .select(
+        'c.*',
+        'w.name as worker_name',
+        'w.mobile_number as worker_mobile',
+        'p.coverage_level as policy_tier',
+        'dz.name as zone_name',
+      )
+      .orderBy('c.created_at', 'desc');
+
+    if (status) {
+      query = query.where('c.status', String(status).toUpperCase());
+    }
+
+    const claims = await query.limit(pageLimit).offset(pageOffset);
+    const totalRow = await db('claims').count('id as c').first();
+
+    res.json({
+      claims,
+      total: Number(totalRow?.c ?? 0),
+      limit: pageLimit,
+      offset: pageOffset,
+    });
+  } catch (err) {
+    console.error('[AdminRoutes] Error listing claims:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /admin/claims/:id
+ * Full claim detail for the admin Claims tab.
+ */
+router.get('/claims/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const claim = await db('claims as c')
+      .leftJoin('workers as w', 'c.worker_id', 'w.id')
+      .leftJoin('policies as p', 'c.policy_id', 'p.id')
+      .select(
+        'c.*',
+        'w.name as worker_name',
+        'w.mobile_number as worker_mobile',
+        'p.coverage_level as policy_tier',
+      )
+      .where('c.id', id)
+      .first();
+
+    if (!claim) {
+      res.status(404).json({ error: 'Claim not found' });
+      return;
+    }
+
+    res.json({ claim });
+  } catch (err) {
+    console.error('[AdminRoutes] Error fetching claim:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /admin/claims/:id/approve
+ * Admin approves a claim regardless of current status.
+ */
+router.post('/claims/:id/approve', async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body ?? {};
+    const claim = await claimService.resolveReview(id, true, reason ?? 'Approved by admin');
+
+    try {
+      await auditService.appendAuditEntry({
+        actor_id: req.workerId ?? 'admin',
+        action: 'CLAIM_APPROVE',
+        resource_type: 'claim',
+        resource_id: id,
+        metadata: { reason: reason ?? null },
+      });
+    } catch {
+      /* non-fatal */
+    }
+
+    res.json({ claim });
+  } catch (err: any) {
+    if (err.message?.includes('not found')) {
+      res.status(404).json({ error: err.message });
+      return;
+    }
+    console.error('[AdminRoutes] Error approving claim:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /admin/claims/:id/reject
+ * Admin rejects a claim regardless of current status.
+ */
+router.post('/claims/:id/reject', async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body ?? {};
+    const claim = await claimService.resolveReview(id, false, reason ?? 'Rejected by admin');
+
+    try {
+      await auditService.appendAuditEntry({
+        actor_id: req.workerId ?? 'admin',
+        action: 'CLAIM_REJECT',
+        resource_type: 'claim',
+        resource_id: id,
+        metadata: { reason: reason ?? null },
+      });
+    } catch {
+      /* non-fatal */
+    }
+
+    res.json({ claim });
+  } catch (err: any) {
+    if (err.message?.includes('not found')) {
+      res.status(404).json({ error: err.message });
+      return;
+    }
+    console.error('[AdminRoutes] Error rejecting claim:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

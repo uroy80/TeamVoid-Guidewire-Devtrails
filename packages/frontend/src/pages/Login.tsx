@@ -8,12 +8,6 @@ import LanguageSwitcher from '../components/LanguageSwitcher';
 
 type Stage = 'register' | 'otp' | 'verifying';
 
-const PLATFORMS = [
-  { id: 'blinkit', name: 'Blinkit', logo: '/logos/blinkit.png', color: '#eab308', bg: 'rgba(234,179,8,0.1)' },
-  { id: 'zepto', name: 'Zepto', logo: '/logos/zepto.png', color: '#a855f7', bg: 'rgba(168,85,247,0.1)' },
-  { id: 'instamart', name: 'Instamart', logo: '/logos/instamart.png', color: '#f97316', bg: 'rgba(249,115,22,0.1)' },
-];
-
 const TOTAL_STEPS = 6;
 
 export default function Login() {
@@ -22,7 +16,7 @@ export default function Login() {
   const login = useStore((s) => s.login);
   const [stage, setStage] = useState<Stage>('register');
   const [mobile, setMobile] = useState('');
-  const [platform, setPlatform] = useState('');
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [otp, setOtp] = useState(['', '', '', '']);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -35,8 +29,8 @@ export default function Login() {
       setError('Enter a valid 10-digit mobile number');
       return;
     }
-    if (!platform) {
-      setError('Please select your platform');
+    if (!agreedToTerms) {
+      setError('You must accept the Terms & Conditions to continue');
       return;
     }
     setError('');
@@ -82,12 +76,18 @@ export default function Login() {
     setLoading(true);
     try {
       const { data } = await auth.verifyOtp(`+91${mobile}`, code);
+      // Prefer the short-lived access token if the backend returned a refresh
+      // pair — falling back to the legacy single-token payload for safety.
+      const accessToken: string = data.access_token || data.token;
       // Store token in localStorage FIRST
-      localStorage.setItem('gs_token', data.token);
+      localStorage.setItem('gs_token', accessToken);
+      if (data.refresh_token) {
+        localStorage.setItem('gs_refresh_token', data.refresh_token);
+      }
       // Save mobile for registration page
       localStorage.setItem('gs_mobile', `+91${mobile}`);
       // Then update Zustand store
-      login(data.token, data.worker);
+      login(accessToken, data.worker);
 
       // If worker exists in response, go to dashboard; otherwise register
       if (data.worker) {
@@ -136,36 +136,9 @@ export default function Login() {
         ))}
       </div>
 
-      {/* Phase 1: Register / Platform select */}
+      {/* Phase 1: Mobile + T&C */}
       {stage === 'register' && (
         <div className="flex-1 fade-in">
-          {/* Platform picker */}
-          <label className="text-xs font-medium mb-3 block" style={{ color: 'var(--text-secondary)' }}>
-            {t('login.platform_label')}
-          </label>
-          <div className="grid grid-cols-3 gap-3 mb-6">
-            {PLATFORMS.map((p) => {
-              const selected = platform === p.id;
-              return (
-                <button
-                  key={p.id}
-                  onClick={() => setPlatform(p.id)}
-                  className="glass flex flex-col items-center gap-2 p-4 transition-all card-hover"
-                  style={{
-                    borderColor: selected ? p.color : undefined,
-                    borderWidth: selected ? '2px' : undefined,
-                    background: selected ? p.bg : undefined,
-                  }}
-                >
-                  <img src={p.logo} alt={p.name} className="w-12 h-12 rounded-xl object-contain" />
-                  <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
-                    {p.name}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
           {/* Phone input */}
           <label className="text-xs font-medium mb-2 block" style={{ color: 'var(--text-secondary)' }}>
             {t('login.mobile_label')}
@@ -185,10 +158,34 @@ export default function Login() {
             />
           </div>
 
+          {/* Terms & Conditions */}
+          <label
+            className="glass flex items-start gap-3 p-3 mb-6 cursor-pointer select-none"
+            style={{ borderColor: agreedToTerms ? 'var(--accent)' : undefined }}
+          >
+            <input
+              type="checkbox"
+              checked={agreedToTerms}
+              onChange={(e) => setAgreedToTerms(e.target.checked)}
+              className="mt-0.5 w-4 h-4 accent-blue-500 shrink-0"
+            />
+            <span className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              I agree to the{' '}
+              <a href="/terms" target="_blank" rel="noreferrer" className="underline" style={{ color: 'var(--accent)' }}>
+                Terms & Conditions
+              </a>{' '}
+              and{' '}
+              <a href="/privacy" target="_blank" rel="noreferrer" className="underline" style={{ color: 'var(--accent)' }}>
+                Privacy Policy
+              </a>
+              , and consent to receive OTPs on this number.
+            </span>
+          </label>
+
           {/* Submit */}
           <button
             onClick={handleSendOtp}
-            disabled={loading || !mobile || !platform}
+            disabled={loading || !mobile || !agreedToTerms}
             className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50"
           >
             {loading ? (

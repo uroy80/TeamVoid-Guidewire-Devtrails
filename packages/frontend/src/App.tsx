@@ -18,6 +18,7 @@ const FraudReview = lazy(() => import('./pages/FraudReview'));
 const AdminLogin = lazy(() => import('./pages/admin/AdminLogin'));
 const Demo = lazy(() => import('./pages/Demo'));
 const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'));
+const AdminClaims = lazy(() => import('./pages/admin/AdminClaims'));
 const Actuarial = lazy(() => import('./pages/admin/Actuarial'));
 
 // ── Loading spinner ─────────────────────────────────────────
@@ -124,6 +125,14 @@ export default function App() {
               element={
                 <AdminRoute>
                   <AdminUsers />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/claims"
+              element={
+                <AdminRoute>
+                  <AdminClaims />
                 </AdminRoute>
               }
             />

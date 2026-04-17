@@ -38,10 +38,7 @@ export default function Claims() {
     disruptionType: c.disruption_type || c.event_type || c.disruptionType || '--',
     createdAt: c.created_at || c.createdAt,
     disruptionDays: c.disruption_hours ? Math.ceil(Number(c.disruption_hours) / 8) : c.disruptionDays,
-    fraudCheck: c.fraud_check_details
-      ? (typeof c.fraud_check_details === 'string' ? JSON.parse(c.fraud_check_details) : c.fraud_check_details)
-      : c.fraudCheck || null,
-    fraudScore: c.fraud_score || c.fraudScore,
+    // fraudCheck/fraudScore are internal signals — intentionally omitted from the worker-facing shape
   });
 
   const loadClaims = async () => {
@@ -210,83 +207,7 @@ export default function Claims() {
                     ))}
                   </div>
 
-                  {/* Fraud / BAS Score */}
-                  {claim.fraudCheck && (
-                    <div className="mt-3 glass p-4">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-secondary)' }}>
-                        <i className="ri-search-eye-line mr-1" />
-                        Fraud Analysis &mdash; BAS Score
-                      </p>
-                      <div className="space-y-2">
-                        {/* BAS Score + Tier */}
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>BAS Score</span>
-                          <span className="text-xs font-bold" style={{
-                            color: (claim.fraudCheck.tier || claim.fraudCheck.bas_breakdown?.tier) === 'GREEN' ? '#10b981'
-                              : (claim.fraudCheck.tier || claim.fraudCheck.bas_breakdown?.tier) === 'YELLOW' ? '#eab308'
-                              : (claim.fraudCheck.tier || claim.fraudCheck.bas_breakdown?.tier) === 'ORANGE' ? '#f97316' : '#ef4444'
-                          }}>
-                            {claim.fraudCheck.bas_score ?? claim.fraudCheck.basScore ?? '--'}/100
-                            {' '}
-                            <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{
-                              background: (claim.fraudCheck.tier) === 'GREEN' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
-                            }}>
-                              {claim.fraudCheck.tier || '--'}
-                            </span>
-                          </span>
-                        </div>
-                        {/* Component scores */}
-                        {[
-                          { label: 'GPS Authenticity', key: 'gps_authenticity', weight: '30%' },
-                          { label: 'Movement Entropy', key: 'movement_entropy', weight: '15%' },
-                          { label: 'Device Consistency', key: 'device_consistency', weight: '15%' },
-                          { label: 'Historical Behavior', key: 'historical_behavior', weight: '20%' },
-                          { label: 'Ring Fraud Absence', key: 'ring_fraud_absence', weight: '10%' },
-                          { label: 'Weather Correlation', key: 'weather_correlation', weight: '10%' },
-                        ].map(({ label, key, weight }) => {
-                          const val = claim.fraudCheck[key] ?? claim.fraudCheck.bas_breakdown?.[key];
-                          if (val == null) return null;
-                          const barColor = val >= 80 ? '#10b981' : val >= 50 ? '#eab308' : '#ef4444';
-                          return (
-                            <div key={key}>
-                              <div className="flex items-center justify-between mb-0.5">
-                                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{label} ({weight})</span>
-                                <span className="text-[10px] font-bold" style={{ color: barColor }}>{val}</span>
-                              </div>
-                              <div style={{ height: 4, borderRadius: 2, background: 'var(--bg-card)', overflow: 'hidden' }}>
-                                <div style={{ width: `${val}%`, height: '100%', borderRadius: 2, background: barColor, transition: 'width 0.5s' }} />
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {/* Fraud Score */}
-                        {claim.fraudScore != null && (
-                          <div className="flex items-center justify-between pt-2" style={{ borderTop: '1px solid var(--border)' }}>
-                            <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>Fraud Score</span>
-                            <span className="text-xs font-semibold" style={{ color: Number(claim.fraudScore) > 50 ? '#ef4444' : '#10b981' }}>
-                              {claim.fraudScore}/100
-                            </span>
-                          </div>
-                        )}
-                        {/* Flags */}
-                        {claim.fraudCheck.flags?.length > 0 && (
-                          <div className="pt-2" style={{ borderTop: '1px solid var(--border)' }}>
-                            <p className="text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Flags</p>
-                            <div className="flex flex-wrap gap-1">
-                              {claim.fraudCheck.flags.map((f: string, i: number) => (
-                                <span key={i} className="text-[9px] px-1.5 py-0.5 rounded font-mono" style={{
-                                  background: f.includes('IMPOSSIBLE') ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.15)',
-                                  color: f.includes('IMPOSSIBLE') ? '#ef4444' : '#f59e0b',
-                                }}>
-                                  {f.length > 30 ? f.slice(0, 30) + '...' : f}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                  {/* Fraud/BAS analysis is an internal risk signal — hidden from worker view */}
                 </div>
               )}
             </div>

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { jsPDF } from 'jspdf';
 import { admin } from '../../api/client';
 import ThemeToggle from '../../components/ThemeToggle';
 
@@ -125,6 +126,113 @@ const Actuarial: React.FC = () => {
   );
   const lrColor = ratioColor(lossRatioPct);
 
+  // ----- PDF export -----
+  // Uses plain ASCII ("Rs." instead of ₹) so jsPDF's default Helvetica
+  // renders cleanly; passes real strings and uses splitTextToSize for wraps.
+  const handleDownloadPDF = useCallback(() => {
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const W = 210;
+    const M = 16;
+    const CW = W - M * 2;
+    let y = 20;
+
+    const line = (text: string, size = 10, bold = false, color: [number, number, number] = [15, 23, 42]) => {
+      doc.setFontSize(size);
+      doc.setFont('helvetica', bold ? 'bold' : 'normal');
+      doc.setTextColor(color[0], color[1], color[2]);
+      const lines = doc.splitTextToSize(String(text), CW);
+      doc.text(lines, M, y);
+      y += lines.length * (size * 0.4) + 2;
+    };
+
+    const divider = () => {
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.2);
+      doc.line(M, y, W - M, y);
+      y += 4;
+    };
+
+    const kv = (label: string, value: string) => {
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.text(label, M, y);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      const vLines = doc.splitTextToSize(String(value), CW - 70);
+      doc.text(vLines, M + 70, y);
+      y += Math.max(6, vLines.length * 4);
+    };
+
+    const section = (title: string) => {
+      y += 2;
+      doc.setFillColor(59, 130, 246);
+      doc.rect(M, y - 3, 1.5, 4, 'F');
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text(title, M + 4, y);
+      y += 6;
+    };
+
+    // Title
+    line('GigShield Actuarial Breakdown', 16, true, [15, 23, 42]);
+    line(`Generated: ${new Date().toLocaleString('en-IN')}`, 9, false, [100, 116, 139]);
+    divider();
+
+    // Loss Ratio
+    section('Loss Ratio');
+    kv('Current', lossRatioPct === null ? '—' : `${lossRatioPct.toFixed(2)}%`);
+    kv('Status', lrColor.label);
+    kv('Benchmark', '< 60% healthy, 60-80% elevated, > 80% critical');
+
+    // UPR
+    section('Unearned Premium Reserve (UPR)');
+    kv('Amount', overview?.upr === undefined ? '—' : `Rs. ${Number(overview.upr).toLocaleString('en-IN')}`);
+    kv('Definition', 'Portion of premium collected but not yet earned.');
+
+    // IBNR
+    section('Incurred But Not Reported (IBNR)');
+    kv('Amount', overview?.ibnr === undefined ? '—' : `Rs. ${Number(overview.ibnr).toLocaleString('en-IN')}`);
+    kv('Definition', 'Estimated reserve for claims incurred but not yet reported.');
+
+    // 99.5% VaR
+    section('Solvency — 99.5% VaR (1-in-100)');
+    kv('Amount', overview?.solvency?.ear_1in100 === undefined ? '—' : `Rs. ${Number(overview.solvency.ear_1in100).toLocaleString('en-IN')}`);
+    kv('Definition', 'Monte Carlo estimate over 1000 simulations.');
+
+    // Policies in Force
+    section('Policies in Force');
+    kv('Count', overview?.policies_in_force === undefined ? '—' : Number(overview.policies_in_force).toLocaleString('en-IN'));
+
+    // Per-zone loss ratio
+    if (zones.length > 0) {
+      section('Loss Ratio by Zone');
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(100, 116, 139);
+      doc.text('Zone', M, y);
+      doc.text('GWP', M + 80, y);
+      doc.text('Claims Paid', M + 120, y);
+      doc.text('Loss Ratio', M + 160, y);
+      y += 5;
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(15, 23, 42);
+      zones.slice(0, 20).forEach((z) => {
+        if (y > 270) { doc.addPage(); y = 20; }
+        const pct = normalizeRatioPct(z.loss_ratio);
+        const zoneName = doc.splitTextToSize(String(z.zone_name ?? z.zone_id ?? '—'), 70);
+        doc.text(zoneName, M, y);
+        doc.text(z.gwp === undefined ? '—' : `Rs. ${Number(z.gwp).toLocaleString('en-IN')}`, M + 80, y);
+        doc.text(z.claims_paid === undefined ? '—' : `Rs. ${Number(z.claims_paid).toLocaleString('en-IN')}`, M + 120, y);
+        doc.text(pct === null ? '—' : `${pct.toFixed(1)}%`, M + 160, y);
+        y += Math.max(5, zoneName.length * 4);
+      });
+    }
+
+    doc.save(`GigShield-Actuarial-${new Date().toISOString().slice(0, 10)}.pdf`);
+  }, [overview, zones, lossRatioPct, lrColor.label]);
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
       {/* Header */}
@@ -158,6 +266,26 @@ const Actuarial: React.FC = () => {
               Updated {lastFetched.toLocaleTimeString()}
             </span>
           )}
+          <button
+            onClick={handleDownloadPDF}
+            disabled={loading}
+            style={{
+              padding: '6px 12px',
+              borderRadius: 8,
+              border: '1px solid var(--border)',
+              background: 'var(--bg-primary)',
+              color: 'var(--accent)',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.5 : 1,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <i className="ri-file-pdf-2-line" /> Download PDF
+          </button>
           <ThemeToggle />
         </div>
       </header>

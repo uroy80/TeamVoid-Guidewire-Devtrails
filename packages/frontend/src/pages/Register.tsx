@@ -5,6 +5,7 @@ import { worker, geo, stores } from '../api/client';
 import { useStore } from '../store/store';
 import { useGoogleMaps } from '../hooks/useGoogleMaps';
 import ThemeToggle from '../components/ThemeToggle';
+import LocationSearch from '../components/LocationSearch';
 import React from 'react';
 
 
@@ -288,6 +289,23 @@ export default function Register() {
               </div>
             ) : (
               <>
+                {/* Address search (Google-Places-style, via Nominatim) */}
+                <LocationSearch
+                  placeholder="Search your address, area, or landmark"
+                  onSelect={async (lat, lng, label) => {
+                    setLatitude(lat);
+                    setLongitude(lng);
+                    setLocationSource('manual');
+                    // Split the first segment as locality hint; keep city from reverse geocode
+                    const firstSegment = label.split(',')[0]?.trim();
+                    if (firstSegment) setLocality(firstSegment);
+                    try {
+                      const city = await reverseGeocode(lat, lng);
+                      if (city) setDetectedCity(city);
+                    } catch { /* silent */ }
+                  }}
+                />
+
                 {/* Location card */}
                 <div className="glass p-4 flex items-center gap-4">
                   <div className="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center shrink-0">

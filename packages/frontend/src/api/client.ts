@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosError, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
 
 const api = axios.create({
   baseURL: '/api',
@@ -14,15 +14,88 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor: redirect on 401
+// ─── Refresh-token rotation machinery ──────────────────────────────────────
+// A single in-flight refresh promise prevents N concurrent 401s from each
+// triggering their own refresh call (which would burn the refresh_token and
+// cause the server to trip the reuse-detection kill switch on the entire
+// session family). All queued requests wait on the same rotation.
+let refreshInFlight: Promise<string | null> | null = null;
+
+type RetriableConfig = InternalAxiosRequestConfig & { _retried?: boolean };
+
+async function rotateRefreshToken(): Promise<string | null> {
+  const refreshToken = localStorage.getItem('gs_refresh_token');
+  if (!refreshToken) return null;
+  try {
+    // Use bare axios here so we don't re-enter our own interceptor chain.
+    const { data } = await axios.post('/api/auth/refresh-token', {
+      refresh_token: refreshToken,
+    });
+    if (data?.access_token && data?.refresh_token) {
+      localStorage.setItem('gs_token', data.access_token);
+      localStorage.setItem('gs_refresh_token', data.refresh_token);
+      return data.access_token as string;
+    }
+    return null;
+  } catch {
+    // Server rejected the refresh — either expired, revoked, or reuse detected.
+    // Drop the stale pair so we don't keep retrying on every subsequent call.
+    localStorage.removeItem('gs_refresh_token');
+    return null;
+  }
+}
+
+function redirectToLogin(): void {
+  const path = window.location.pathname;
+  const isAuthPage = path.includes('/login') || path === '/welcome' || path === '/';
+  if (isAuthPage) return;
+  localStorage.removeItem('gs_token');
+  localStorage.removeItem('gs_refresh_token');
+  localStorage.removeItem('gs_is_admin');
+  localStorage.removeItem('gs_admin');
+  window.location.href = path.startsWith('/admin') ? '/admin/login' : '/welcome';
+}
+
+// Response interceptor: silent refresh on 401, redirect on failure
 api.interceptors.response.use(
   (res) => res,
-  (error) => {
-    if (error.response?.status === 401 && !window.location.pathname.includes('/login')) {
-      localStorage.removeItem('gs_token');
-      localStorage.removeItem('gs_admin');
-      window.location.href = '/login';
+  async (error: AxiosError) => {
+    const original = error.config as RetriableConfig | undefined;
+    const status = error.response?.status;
+
+    // Only attempt refresh for 401s on non-auth endpoints that we haven't
+    // already retried. The refresh-token endpoint itself must never recurse.
+    const url = original?.url ?? '';
+    const isAuthCall =
+      url.includes('/auth/refresh-token') ||
+      url.includes('/auth/send-otp') ||
+      url.includes('/auth/verify-otp') ||
+      url.includes('/auth/admin/login') ||
+      url.includes('/auth/logout');
+
+    if (status === 401 && original && !original._retried && !isAuthCall) {
+      original._retried = true;
+
+      if (!refreshInFlight) {
+        refreshInFlight = rotateRefreshToken().finally(() => {
+          refreshInFlight = null;
+        });
+      }
+
+      const newToken = await refreshInFlight;
+      if (newToken) {
+        // Replay the original request with the freshly-rotated access token.
+        original.headers = original.headers ?? {};
+        (original.headers as Record<string, string>).Authorization = `Bearer ${newToken}`;
+        return api.request(original as AxiosRequestConfig);
+      }
+
+      // Refresh failed — kick to login.
+      redirectToLogin();
+    } else if (status === 401 && !isAuthCall) {
+      redirectToLogin();
     }
+
     return Promise.reject(error);
   },
 );
@@ -122,8 +195,17 @@ export const admin = {
     api.get('/admin/audit-log', { params }),
   getWorkers: () => api.get('/admin/workers'),
   getWorkerDetail: (id: string) => api.get(`/admin/workers/${id}`),
+  getWorkerDeletePreview: (id: string) => api.get(`/admin/workers/${id}/delete-preview`),
   deleteWorker: (id: string) => api.delete(`/admin/workers/${id}`),
   getStats: () => api.get('/admin/stats'),
+  // ── Claims management ──────────────────────────────────────
+  listClaims: (params?: { status?: string; limit?: number; offset?: number }) =>
+    api.get('/admin/claims', { params }),
+  getClaim: (id: string) => api.get(`/admin/claims/${id}`),
+  approveClaim: (id: string, reason?: string) =>
+    api.post(`/admin/claims/${id}/approve`, { reason }),
+  rejectClaim: (id: string, reason?: string) =>
+    api.post(`/admin/claims/${id}/reject`, { reason }),
   getAIInsights: () => api.get('/admin/ai-insights'),
   getWorkerAIRisk: (id: string) => api.get(`/admin/workers/${id}/ai-risk`),
   getClaimAIAssessment: (id: string) => api.get(`/admin/claims/${id}/ai-assessment`),

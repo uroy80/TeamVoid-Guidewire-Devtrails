@@ -52,6 +52,10 @@ export default function CoverageSelection() {
   const [createdPolicy, setCreatedPolicy] = useState<any>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
 
+  // Exclusions gate — user must acknowledge before purchase
+  const [showExclusions, setShowExclusions] = useState(false);
+  const [exclusionsAccepted, setExclusionsAccepted] = useState(false);
+
   useEffect(() => {
     (async () => {
       try {
@@ -139,7 +143,50 @@ export default function CoverageSelection() {
       {stage === 'plans' && (
         <>
           <h1 className="text-2xl font-bold mb-1 slide-up" style={{ color: 'var(--text-primary)' }}>Choose Your Coverage</h1>
-          <p className="text-sm mb-6 slide-up" style={{ color: 'var(--text-secondary)' }}>Based on your AI-generated risk profile</p>
+          <p className="text-sm mb-4 slide-up" style={{ color: 'var(--text-secondary)' }}>Based on your AI-generated risk profile</p>
+
+          {/* Top-level exclusions banner — visible before any plan is selected */}
+          <div
+            className="glass mb-5 slide-up"
+            style={{ overflow: 'hidden', borderColor: 'rgba(245, 158, 11, 0.35)', animationDelay: '0.05s' }}
+          >
+            <button
+              type="button"
+              onClick={() => setShowExclusions((v) => !v)}
+              className="w-full flex items-center justify-between p-3"
+              style={{ background: 'var(--bg-secondary)' }}
+            >
+              <div className="flex items-center gap-2">
+                <i className="ri-alert-line" style={{ color: '#f59e0b', fontSize: 16 }} />
+                <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  Read before buying: What is NOT covered
+                </span>
+              </div>
+              <i className={`ri-arrow-${showExclusions ? 'up' : 'down'}-s-line`} style={{ color: 'var(--text-secondary)', fontSize: 16 }} />
+            </button>
+            {showExclusions && (
+              <div className="fade-in" style={{ padding: '8px 12px 12px', borderTop: '1px solid var(--border)' }}>
+                <ul className="text-[11px] space-y-1" style={{ color: 'var(--text-secondary)', lineHeight: 1.55 }}>
+                  {[
+                    'Pre-existing injuries or conditions present before policy activation',
+                    'Self-inflicted events or deliberate actions',
+                    'Fraud, misrepresentation, or falsified claim information',
+                    'War, terrorism, nuclear, or radioactive incidents',
+                    'Events while under the influence of alcohol or drugs',
+                    'Claims related to criminal activity or illegal acts',
+                    'Non-parametric losses not tied to a verified disruption event',
+                    'Claims for events outside the active policy window',
+                    'Duplicate claims for the same disruption event',
+                  ].map((ex, i) => (
+                    <li key={i} className="flex items-start gap-1.5">
+                      <i className="ri-arrow-right-s-line shrink-0 mt-0.5" style={{ color: '#f59e0b' }} />
+                      <span>{ex}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
 
           {/* Risk Score */}
           <div className="flex justify-center mb-6 slide-up" style={{ animationDelay: '0.1s' }}>
@@ -304,6 +351,65 @@ export default function CoverageSelection() {
             </p>
           </div>
 
+          {/* Policy Exclusions (Important) — collapsible, required ack before Buy */}
+          <div className="glass mb-4" style={{ overflow: 'hidden', borderColor: 'rgba(245, 158, 11, 0.35)' }}>
+            <button
+              type="button"
+              onClick={() => setShowExclusions((v) => !v)}
+              className="w-full flex items-center justify-between p-4"
+              style={{ background: 'var(--bg-secondary)' }}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(245,158,11,0.12)' }}>
+                  <i className="ri-alert-line" style={{ color: '#f59e0b', fontSize: 18 }} />
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Policy Exclusions (Important)</p>
+                  <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Tap to {showExclusions ? 'hide' : 'view'} what is not covered</p>
+                </div>
+              </div>
+              <i className={`ri-arrow-${showExclusions ? 'up' : 'down'}-s-line`} style={{ color: 'var(--text-secondary)', fontSize: 18 }} />
+            </button>
+
+            {showExclusions && (
+              <div className="fade-in" style={{ padding: '4px 16px 12px', borderTop: '1px solid var(--border)' }}>
+                <ul className="text-xs space-y-1.5 mt-3" style={{ color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  {[
+                    'Pre-existing injuries or conditions present before policy activation',
+                    'Self-inflicted events or deliberate actions',
+                    'Fraud, misrepresentation, or falsified claim information',
+                    'War, terrorism, nuclear, or radioactive incidents',
+                    'Events while under the influence of alcohol or drugs',
+                    'Claims related to criminal activity or illegal acts',
+                    'Non-parametric losses not tied to a verified disruption event',
+                    'Claims for events occurring outside the active policy window',
+                    'Duplicate claims filed for the same disruption event',
+                  ].map((ex, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <i className="ri-arrow-right-s-line shrink-0 mt-0.5" style={{ color: '#f59e0b' }} />
+                      <span>{ex}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <label
+              className="flex items-center gap-2 px-4 py-3 cursor-pointer"
+              style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-secondary)' }}
+            >
+              <input
+                type="checkbox"
+                checked={exclusionsAccepted}
+                onChange={(e) => setExclusionsAccepted(e.target.checked)}
+                style={{ accentColor: '#f59e0b', width: 16, height: 16 }}
+              />
+              <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
+                I have read and understood the exclusions
+              </span>
+            </label>
+          </div>
+
           {error && (
             <div className="glass p-3 mb-4 flex items-center gap-2">
               <i className="ri-error-warning-line text-red-400" />
@@ -311,9 +417,14 @@ export default function CoverageSelection() {
             </div>
           )}
 
-          <button onClick={handlePay} disabled={!upiId} className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-40">
+          <button onClick={handlePay} disabled={!upiId || !exclusionsAccepted} className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-40">
             <i className="ri-secure-payment-line" /> Pay &#8377;{selectedPlan.premium}
           </button>
+          {!exclusionsAccepted && (
+            <p className="text-[10px] text-center mt-2" style={{ color: 'var(--text-muted)' }}>
+              Please review and acknowledge the exclusions above to continue
+            </p>
+          )}
         </div>
       )}
 

@@ -94,8 +94,21 @@ export const useStore = create<AppState>((set) => ({
   },
 
   logout: () => {
+    // Best-effort revoke of the refresh token. We fire-and-forget — if the
+    // server is unreachable we still clear local state so the user isn't stuck.
+    const refreshToken = (() => {
+      try { return localStorage.getItem('gs_refresh_token'); } catch { return null; }
+    })();
+    if (refreshToken) {
+      // Dynamic import to avoid a circular dep between store and client.
+      import('../api/client').then(({ default: api }) => {
+        api.post('/auth/logout', { refresh_token: refreshToken }).catch(() => {});
+      }).catch(() => {});
+    }
     localStorage.removeItem('gs_token');
+    localStorage.removeItem('gs_refresh_token');
     localStorage.removeItem('gs_is_admin');
+    localStorage.removeItem('gs_admin');
     set({
       token: null,
       worker: null,
