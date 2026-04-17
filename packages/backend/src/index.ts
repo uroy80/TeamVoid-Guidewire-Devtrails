@@ -61,14 +61,17 @@ app.use('/api/claims/request', claimLimiter);
 app.use('/api/claims', claimRoutes);
 
 app.use('/api/triggers', triggerRoutes);
-app.use('/api/admin', adminRoutes);
+// The more-specific admin sub-mounts MUST come before '/api/admin' — adminRoutes
+// applies requireAuth (Bearer header) to its whole router, which would 401 any
+// request with query-param auth (EventSource) before it could reach the SSE handler.
+app.use('/api/admin/events', eventsRoutes);
 app.use('/api/admin/actuarial', actuarialRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/stores', storesRoutes);
 app.use('/api/geo', geoRoutes);
 app.use('/api/demo', demoRoutes);
 app.use('/api/public', publicRoutes);
-app.use('/api/admin/events', eventsRoutes);
 
 app.use('/api/community/report', reportLimiter);
 app.use('/api/community', communityRoutes);
