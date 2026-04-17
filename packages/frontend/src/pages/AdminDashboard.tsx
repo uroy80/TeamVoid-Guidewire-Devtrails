@@ -56,6 +56,11 @@ interface HeatmapZone {
 }
 
 
+// Set at build time by Vite. Empty when the Docker builder didn't receive
+// VITE_GOOGLE_MAPS_KEY as a build-arg — we fall back to a list-only view so
+// the dashboard still functions without Google Maps.
+const HAS_MAPS_KEY = !!((import.meta as { env?: Record<string, string> }).env?.VITE_GOOGLE_MAPS_KEY);
+
 function getHeatmapColor(risk: number): string {
   if (risk < 25) return '#10b981';
   if (risk < 50) return '#eab308';
@@ -85,7 +90,8 @@ const AUDIT_EVENT_ICONS: Record<string, string> = {
 };
 
 const AdminDashboard: React.FC = () => {
-  const { isLoaded } = useGoogleMaps();
+  const { isLoaded, loadError } = useGoogleMaps();
+  const mapBroken = !HAS_MAPS_KEY || !!loadError;
   const token = useStore((s) => s.token);
   const { events, connected } = useEventStream(token);
 
@@ -576,7 +582,41 @@ const AdminDashboard: React.FC = () => {
           <div style={{ display: 'flex', height: 480 }}>
             {/* Map (left) */}
             <div style={{ flex: 1, position: 'relative' }}>
-              {isLoaded ? (
+              {mapBroken ? (
+                <div style={{
+                  width: '100%', height: '100%', display: 'flex',
+                  flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  padding: 24, textAlign: 'center', background: 'var(--bg-secondary)',
+                }}>
+                  <i className="ri-map-2-line" style={{ fontSize: 40, color: 'var(--text-muted)', marginBottom: 12 }} />
+                  <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                    Regional map unavailable
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)', maxWidth: 320 }}>
+                    {loadError
+                      ? 'Google Maps failed to load. Zone data is still live in the sidebar.'
+                      : 'Map credentials missing in this build. Zone data remains live in the sidebar.'}
+                  </p>
+                  <div style={{ marginTop: 16, display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+                    {[
+                      { label: 'Low', color: '#10b981' },
+                      { label: 'Moderate', color: '#eab308' },
+                      { label: 'High', color: '#f97316' },
+                      { label: 'Critical', color: '#ef4444' },
+                    ].map((r) => (
+                      <span
+                        key={r.label}
+                        style={{
+                          fontSize: 10, padding: '2px 8px', borderRadius: 999,
+                          background: r.color + '22', color: r.color, fontWeight: 600,
+                        }}
+                      >
+                        {heatmapZones.filter((z) => getHeatmapColor(z.riskScore) === r.color).length} {r.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : isLoaded ? (
                 <GoogleMap
                   mapContainerStyle={{ width: '100%', height: '100%' }}
                   center={{ lat: 20.5, lng: 78.9 }}
