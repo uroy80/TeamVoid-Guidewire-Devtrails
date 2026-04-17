@@ -40,8 +40,8 @@
   <a href="https://youtu.be/bx8AVAU_amk">
     <img src="https://img.shields.io/badge/Phase%203%20Video-YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Demo Video"/>
   </a>
-  <a href="https://drive.google.com/drive/folders/11OMzlHfn8ZOcPxxRBEHwB0wbOdRAqKqe?usp=drive_link">
-    <img src="https://img.shields.io/badge/Pitch%20Deck-Google%20Drive-4285F4?style=for-the-badge&logo=googledrive&logoColor=white" alt="Pitch Deck"/>
+  <a href="https://gigshield.in/pitch/">
+    <img src="https://img.shields.io/badge/Pitch%20Deck-gigshield.in%2Fpitch-F26522?style=for-the-badge&logo=googleslides&logoColor=white" alt="Pitch Deck"/>
   </a>
   <a href="https://github.com/uroy80/TeamVoid-Guidewire-Devtrails">
     <img src="https://img.shields.io/badge/Source-GitHub-181717?style=for-the-badge&logo=github&logoColor=white" alt="Source"/>
@@ -56,10 +56,12 @@
 |---|---|---|
 | **Live Product** | [gigshield.in](https://gigshield.in) | Deployed on Hostinger VPS behind Cloudflare SSL |
 | **Git Repository** | [uroy80/TeamVoid-Guidewire-Devtrails](https://github.com/uroy80/TeamVoid-Guidewire-Devtrails) | Public, all commits attributed |
-| **Pitch Deck** | [Google Drive folder](https://drive.google.com/drive/folders/11OMzlHfn8ZOcPxxRBEHwB0wbOdRAqKqe?usp=drive_link) | HTML + PPTX (Guidewire UI style) |
+| **Pitch Deck — Live** | [gigshield.in/pitch/](https://gigshield.in/pitch/) | 18-slide HTML deck, keyboard-navigable (arrows / PgDn / F to print) |
+| **Pitch Deck — PPTX** | [gigshield.in/pitch/gigshield-pitch.pptx](https://gigshield.in/pitch/gigshield-pitch.pptx) | 16:9 PowerPoint for offline / submission form |
+| **Pitch Deck — Drive Mirror** | [Google Drive folder](https://drive.google.com/drive/folders/11OMzlHfn8ZOcPxxRBEHwB0wbOdRAqKqe?usp=drive_link) | Mirror copy (HTML + PPTX) |
 | **Recorded Video** | [youtu.be/bx8AVAU_amk](https://youtu.be/bx8AVAU_amk) | End-to-end Phase 3 walkthrough |
-| **Admin Login** | admin@gigshield.in / admin123 | Full fraud-review + ops panel |
-| **Worker Login** | Any Indian mobile number | Real Twilio Verify OTP |
+| **Admin Login** | `admin@gigshield.in` / `admin123` | Full fraud-review + ops panel |
+| **Worker Login** | Any Indian mobile number | Real Twilio Verify OTP via SMS |
 
 ---
 
@@ -154,6 +156,51 @@ GigShield is fully deployed and accessible:
 
 ---
 
+## Pitch Deck
+
+An 18-slide pitch deck is shipped with this repository and served live off the same domain as the product.
+
+| Format | URL | Notes |
+|---|---|---|
+| **Live HTML** | [gigshield.in/pitch/](https://gigshield.in/pitch/) | Single-file, zero build, keyboard-navigable |
+| **PPTX** | [gigshield.in/pitch/gigshield-pitch.pptx](https://gigshield.in/pitch/gigshield-pitch.pptx) | 16:9 PowerPoint, for offline / submission forms |
+| **Source** | [`docs/pitch-deck/`](./docs/pitch-deck/) | HTML, PPTX, python-pptx builder, logo assets |
+
+**Styling:** Guidewire UI language — navy `#002B5C`, orange `#F26522`, blue `#00A7E1`, green `#1FAE5F`, Inter + IBM Plex Mono typography.
+
+**Deck contents:**
+
+| # | Slide | What it covers |
+|---|---|---|
+| 1 | **Title** | Team Void · Guidewire DEVTrails 2026 · Phase 3 Final |
+| 2 | **The Problem** | 7.7 M gig workers · 72% per-order income · 42–75-day claim cycles |
+| 3 | **Market & Opportunity** | India Q-Commerce TAM / SAM / SOM |
+| 4 | **The Core Insight** | Reframing claims as *parameters*, not paperwork |
+| 5 | **Solution Flow** | Trigger → Claim → BAS → Razorpay, 4-step |
+| 6 | **Live Product** | Real `order_SeeezClhAFfttw` on live gigshield.in |
+| 7 | **Architecture** | Cloudflare → Nginx → Express → Postgres/Redis |
+| 8 | **BAS Engine** | 11 weighted signals + routing rules |
+| 9 | **Payment Routing** | VPA-suffix router: Razorpay real / UPI mock / Stripe mock |
+| 10 | **AI Layer** | GPT-5.4 — risk narrative, claim assessment, fraud summary |
+| 11 | **11 Indian Languages** | Native-script grid with coverage matrix |
+| 12 | **Live Ops War Room** | SSE event stream demo |
+| 13 | **Community Reports** | Worker-as-sensor differentiator |
+| 14 | **Unit Economics** | Premium · loss ratio · burn rate |
+| 15 | **Tech Stack** | Full production stack with versions |
+| 16 | **Phase 3 Scorecard** | What shipped vs. original plan |
+| 17 | **Roadmap & Ask** | 12-month plan · what we need |
+| 18 | **Thank You** | Team credits + all submission links |
+
+**Keyboard controls** (live HTML): `↑` `↓` `←` `→` `PageUp` `PageDown` to navigate, `F` to open browser print (landscape / fit to page).
+
+**Rebuild the PPTX** after editing:
+```bash
+cd docs/pitch-deck && python3 build_pptx.py
+```
+Requires `pip install python-pptx`.
+
+---
+
 ## Why Q-Commerce?
 
 We chose **Blinkit / Zepto / Instamart delivery partners** because they're the most vulnerable segment:
@@ -185,7 +232,7 @@ We chose **Blinkit / Zepto / Instamart delivery partners** because they're the m
 
 ---
 
-## 5,500+ Real Dark Stores
+## ~5,580 Real Dark Stores
 
 GigShield uses **real dark-store locations** scraped from Blinkit, Zepto and Swiggy Instamart public coverage data. Stores are seeded into PostgreSQL and selected on a Google Maps interface with platform-specific logo markers.
 
@@ -228,7 +275,7 @@ Worker sees confetti + "🎉 ₹320 received! Waterlogging" toast in their PWA.
 **Worker:** Priya, Zepto, Gurugram
 **Event:** Temperature > 45°C, platform restricts deliveries for 6 hours
 
-GigShield detects temperature breach via Open-Meteo → identifies all Gurugram workers with active policies → auto-processes claims → GPT-4.1 generates risk narrative → payouts within minutes.
+GigShield detects temperature breach via Open-Meteo → identifies all Gurugram workers with active policies → auto-processes claims → GPT-5.4 generates risk narrative → payouts within minutes.
 </details>
 
 <details>
@@ -253,7 +300,7 @@ BAS engine fires:
   - DEVICE_FINGERPRINT_REUSE: hash matches flagged account
   - ZONE_MISMATCH: claim outside insured zone
 BAS composite score = 0.84 → REJECTED
-GPT-4.1 drafts narrative: "Claim shows IMPOSSIBLE_TRAVEL of 450 km/h
+GPT-5.4 drafts narrative: "Claim shows IMPOSSIBLE_TRAVEL of 450 km/h
 between pings. Device fingerprint reused from previously flagged
 account wr_abc123. Recommend REJECT."
 ```
@@ -272,7 +319,7 @@ BAS engine fires on the CLUSTER, not the individual:
   - IP_ASN_SHARING: same /24 subnet
   - PATTERN_SIMILARITY: cosine sim 0.97 across trails
 All 5 claims → UNDER_REVIEW, cluster surfaced to Fraud Review panel
-GPT-4.1 summary: "Coordinated ring fraud — 5 accounts, 1 device, 1 IP.
+GPT-5.4 summary: "Coordinated ring fraud — 5 accounts, 1 device, 1 IP.
 Recommend account suspension + KYC re-verification."
 ```
 </details>
@@ -323,7 +370,7 @@ Recommend account suspension + KYC re-verification."
                   │  ┌──────────┴───────────┐ │
                   │  │ gigshield-app        │─┼── api.razorpay.com/v1/orders
                   │  │ Node 20 + Express    │ │── Twilio Verify
-                  │  │ (multi-stage Docker) │ │── OpenAI GPT-4.1
+                  │  │ (multi-stage Docker) │ │── OpenAI GPT-5.4
                   │  └─┬──────────┬─────────┘ │── AQICN
                   │    │          │           │── Open-Meteo
                   │    ▼          ▼           │── Google Maps JS
@@ -368,7 +415,7 @@ graph TB
     end
 
     subgraph AI["AI Layer"]
-        GPT["OpenAI GPT-4.1 (Redis-cached)"]
+        GPT["OpenAI GPT-5.4 (Redis-cached)"]
     end
 
     subgraph Pay["Payment Gateways"]
@@ -412,7 +459,7 @@ sequenceDiagram
     participant TM as Trigger Monitor
     participant CE as Claim Service
     participant FD as Fraud (BAS)
-    participant GPT as GPT-4.1
+    participant GPT as GPT-5.4
     participant PO as Payout Router
     participant RZP as Razorpay Orders API
     participant W as Worker PWA
@@ -471,7 +518,7 @@ BAS(c) = Σ w_j · f_j(c),     Σ w_j = 1
 
 ```
 BAS < 0.30  AND source = AUTO     → APPROVED   (Razorpay fires)
-0.30 ≤ BAS < 0.70 OR source=MANUAL → UNDER_REVIEW (GPT-4.1 drafts assessment)
+0.30 ≤ BAS < 0.70 OR source=MANUAL → UNDER_REVIEW (GPT-5.4 drafts assessment)
 BAS ≥ 0.70                         → REJECTED
 ```
 
@@ -539,9 +586,9 @@ Every accepted payout stores the full real Razorpay payload under `gateway_respo
 
 ## AI Integration
 
-### OpenAI GPT-4.1 — three use cases
+### OpenAI GPT-5.4 — three use cases
 
-GigShield uses **OpenAI GPT-4.1** for the intelligence layer — no Python microservice, everything runs in TypeScript/Node.js via the official `openai` SDK.
+GigShield uses **OpenAI GPT-5.4** for the intelligence layer — no Python microservice, everything runs in TypeScript/Node.js via the official `openai` SDK.
 
 | Function | File | Purpose | Cache |
 |---|---|---|---|
@@ -684,7 +731,7 @@ Fraud rings leave *network-level* patterns that per-individual analysis misses:
 |------|-----------|--------|-------------------|
 | Green | < 0.30 | Auto-approve | Instant Razorpay payout + confetti |
 | Amber | 0.30 – 0.69 | UNDER_REVIEW | "We're reviewing your claim" |
-| Red | ≥ 0.70 | Reject | GPT-4.1 drafts explanation for admin |
+| Red | ≥ 0.70 | Reject | GPT-5.4 drafts explanation for admin |
 
 **Philosophy:** We'd rather pay 5% of fraudulent claims than deny 1% of legitimate ones. The reputational cost of rejecting a genuine stranded worker is higher than the financial cost of occasional fraud leakage.
 
@@ -700,7 +747,7 @@ Fraud rings leave *network-level* patterns that per-individual analysis misses:
 | **11 Indian Languages** | Live | Globe switcher in header, auto-detect + `localStorage` persist |
 | **GPS Detection** | Live | Browser geolocation with accuracy tracking |
 | **Dark Store Selection** | Live | Google Maps with ~5,580 real stores (platform logos) |
-| **Risk Score + Narrative** | Live | GPT-4.1 explains why the zone is rated |
+| **Risk Score + Narrative** | Live | GPT-5.4 explains why the zone is rated |
 | **3-Tier Coverage** | Live | Basic (40%) / Standard (60%) / Premium (80%) |
 | **Real Payment Options** | Live | Razorpay real API / UPI mock / Stripe mock, routed by VPA |
 | **PDF Policy** | Live | Generated via jsPDF on-device |
@@ -717,9 +764,9 @@ Fraud rings leave *network-level* patterns that per-individual analysis misses:
 |---------|--------|-------------|
 | **Live Ops War Room** | Live | SSE feed of all system events with animated ticker |
 | **Hero Stats Dashboard** | Live | 8 KPIs: workers, policies, claims, payouts, fraud rate, avg BAS, etc. |
-| **AI Insights Card** | Live | GPT-4.1-generated fraud pattern summary (refreshable) |
+| **AI Insights Card** | Live | GPT-5.4-generated fraud pattern summary (refreshable) |
 | **Regional Heatmap** | Live | Google Maps heatmap of claim density by zone |
-| **Fraud Review** | Live | 11-signal BAS breakdown + GPT-4.1 assessment per claim |
+| **Fraud Review** | Live | 11-signal BAS breakdown + GPT-5.4 assessment per claim |
 | **User Management** | Live | View all workers, drill into details, soft-delete |
 | **Manual Trigger** | Live | Admin-triggered disruption events |
 | **Actuarial Dashboard** | Live | Loss ratios, burn-rate, per-zone actuarial tables |
@@ -767,7 +814,7 @@ erDiagram
 - **Zone** — delivery zone with city grouping (PostGIS polygons)
 - **DisruptionEvent** — type, severity, affected zone, weather/community source
 - **Claim** — auto or manual, BAS score, payout amount, status, gateway chosen
-- **FraudCheck** — 11-signal BAS breakdown, GPT-4.1 assessment
+- **FraudCheck** — 11-signal BAS breakdown, GPT-5.4 assessment
 - **Payout** — full lifecycle (initiated → processing → settled/failed) with UTR, fee, tax, raw gateway response (migration 009)
 - **CommunityReport** — lat/lng, condition, severity, verified flag, disruption_event_id
 - **LocationPing** — GPS coordinates, accuracy, IP address, timestamp
@@ -819,7 +866,7 @@ erDiagram
 | **JWT** + **Twilio Verify** | Auth flow |
 | **Zod** | Env + input validation |
 | **node-cron** | 15-min trigger monitor + community cluster sweep |
-| **OpenAI SDK** | GPT-4.1 client in `external/openai.client.ts` |
+| **OpenAI SDK** | GPT-5.4 client in `external/openai.client.ts` |
 | **Pino** | Structured logging |
 
 **Key API Routes:**
@@ -856,7 +903,7 @@ erDiagram
 | **Twilio Verify** | SMS OTP | Pay-per-use | On login |
 | **Razorpay Orders API** | **Real** payout reference IDs | Test-mode free | On approval |
 | **Google Maps API** | Store map, coverage heatmap, location trail | Pay-per-use | On demand |
-| **OpenAI GPT-4.1** | Risk narrative, claim assessment, fraud summary | Pay-per-use | On claim / dashboard |
+| **OpenAI GPT-5.4** | Risk narrative, claim assessment, fraud summary | Pay-per-use | On claim / dashboard |
 
 ### Deployment
 
@@ -879,7 +926,11 @@ erDiagram
 Devtrails/
 ├── README.md                     # This file
 ├── docs/
-│   └── pitch-deck/               # Phase 3 pitch deck (HTML + PPTX)
+│   └── pitch-deck/               # Phase 3 pitch deck (Guidewire UI style)
+│       ├── gigshield-pitch.html  #   18-slide single-file HTML deck
+│       ├── gigshield-pitch.pptx  #   16:9 PPTX mirror for submission
+│       ├── build_pptx.py         #   python-pptx generator (regeneratable)
+│       └── assets/               #   Logo PNGs (light + dark variants)
 ├── package.json                  # Monorepo root (npm workspaces)
 ├── docker-compose.yml            # Dev: PostgreSQL 16 + Redis 7
 ├── docker-compose.prod.yml       # Production (Hostinger)
@@ -986,7 +1037,7 @@ TWILIO_VERIFY_SID=your_verify_service_sid
 # AQICN (air quality)
 AQICN_API_KEY=your_aqicn_key
 
-# OpenAI (GPT-4.1)
+# OpenAI (GPT-5.4)
 OPENAI_API_KEY=your_openai_key
 
 # Google Maps (frontend)
@@ -1058,7 +1109,7 @@ open http://localhost:8080
 - [x] 5 parametric triggers (live)
 - [x] BAS fraud detection
 - [x] Anti-spoofing demo (3 scenarios)
-- [x] GPT-4.1 integration
+- [x] GPT-5.4 integration
 - [x] Admin dashboard
 - [x] Manual trigger + auto-claims
 - [x] Coverage map + location trail
@@ -1140,6 +1191,7 @@ Delivery riders often have entry-level phones with constrained storage. 80 MB AP
 
 <p align="center">
   <a href="https://gigshield.in"><img src="https://img.shields.io/badge/Live-gigshield.in-4CAF50?style=for-the-badge" alt=""/></a>
+  <a href="https://gigshield.in/pitch/"><img src="https://img.shields.io/badge/Pitch%20Deck-gigshield.in%2Fpitch-F26522?style=for-the-badge" alt=""/></a>
   <a href="https://youtu.be/bx8AVAU_amk"><img src="https://img.shields.io/badge/Video-YouTube-FF0000?style=for-the-badge" alt=""/></a>
-  <a href="https://drive.google.com/drive/folders/11OMzlHfn8ZOcPxxRBEHwB0wbOdRAqKqe?usp=drive_link"><img src="https://img.shields.io/badge/Pitch%20Deck-Drive-4285F4?style=for-the-badge" alt=""/></a>
+  <a href="https://github.com/uroy80/TeamVoid-Guidewire-Devtrails"><img src="https://img.shields.io/badge/Source-GitHub-181717?style=for-the-badge" alt=""/></a>
 </p>

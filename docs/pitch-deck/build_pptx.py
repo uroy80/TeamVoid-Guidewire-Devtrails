@@ -283,7 +283,7 @@ add_text(s, Inches(0.8), Inches(3.4), Inches(11), Inches(1.2),
 chips = [
     ('Parametric Insurance', GW_ORANGE, GW_WHITE),
     ('BAS Anti-Spoofing',    RGBColor(0x1A, 0x44, 0x7A), GW_WHITE),
-    ('OpenAI GPT-4.1',       RGBColor(0x1A, 0x44, 0x7A), GW_WHITE),
+    ('OpenAI GPT-5.4',       RGBColor(0x1A, 0x44, 0x7A), GW_WHITE),
     ('Live Razorpay API',    RGBColor(0x1A, 0x44, 0x7A), GW_WHITE),
     ('11 Indian Languages',  RGBColor(0x1A, 0x44, 0x7A), GW_WHITE),
     ('Server-Sent Events',   RGBColor(0x1A, 0x44, 0x7A), GW_WHITE),
@@ -542,7 +542,7 @@ add_title(s, Inches(1.15), "Deployed, monitored, and taking real payments.",
 p_y = Inches(2.7); p_w = Inches(4.0); p_h = Inches(2.3)
 portals = [
     ("gigshield.in",              "Main worker PWA. Real Twilio Verify OTP.",            "https://gigshield.in",                   GW_GREEN,  "ONLINE"),
-    ("gigshield.in/admin/login",  "Live Ops SSE feed, fraud review, GPT-4.1 insights.",  "admin@gigshield.in · admin123",          GW_ORANGE, "ADMIN PANEL"),
+    ("gigshield.in/admin/login",  "Live Ops SSE feed, fraud review, GPT-5.4 insights.",  "admin@gigshield.in · admin123",          GW_ORANGE, "ADMIN PANEL"),
     ("gigshield.in/demo",         "3 anti-spoofing scenarios: legit, spoof, ring.",      "No login required",                      GW_BLUE,   "SIMULATOR"),
 ]
 for i, (title, desc, url, accent, pill) in enumerate(portals):
@@ -600,7 +600,7 @@ arch = ("                              ┌────────────�
         "         │   ┌────────┐   ┌────────────────────────┐                          │\n"
         "         │   │React 19│   │ Node 20 · Express 4    │ ◀── api.razorpay.com     │\n"
         "         │   │  PWA   │   │ 15 Svcs · 9 Migrations │ ◀── Twilio Verify        │\n"
-        "         │   │ 11 lang│   │ SSE /events/stream     │ ◀── OpenAI GPT-4.1       │\n"
+        "         │   │ 11 lang│   │ SSE /events/stream     │ ◀── OpenAI GPT-5.4       │\n"
         "         │   └────────┘   └──────┬─────────────────┘ ◀── AQICN / Open-Meteo   │\n"
         "         │                       │                                             │\n"
         "         │                       ▼                                             │\n"
@@ -763,7 +763,7 @@ add_text(s, Inches(3.0), cb_y + Inches(0.2), Inches(9.5), Inches(0.6),
 # =========================================================================
 s = prs.slides.add_slide(BLANK)
 add_slide_chrome(s, 10, "09 / AI")
-add_eyebrow(s, Inches(0.85), "OpenAI GPT-4.1 · Three use cases")
+add_eyebrow(s, Inches(0.85), "OpenAI GPT-5.4 · Three use cases")
 add_title(s, Inches(1.15), "Natural-language reasoning where humans actually read.",
           accent_word="actually read.")
 add_subtitle(s, Inches(2.2),
@@ -816,7 +816,7 @@ add_text(s, Inches(0.9), rag_y + Inches(0.15), Inches(11), Inches(0.35),
          "RAG context we inject", size=12, bold=True, color=GW_WHITE)
 add_text(s, Inches(0.9), rag_y + Inches(0.47), Inches(11.5), Inches(0.4),
          "Worker BAS breakdown · claim history · zone weather history · device fingerprint · "
-         "ring-fraud signal output · policy metadata — structured as typed JSON so GPT-4.1 "
+         "ring-fraud signal output · policy metadata — structured as typed JSON so GPT-5.4 "
          "returns bounded, citable reasoning.",
          size=10, color=RGBColor(0xD9, 0xE7, 0xFF), line_spacing=1.3)
 
@@ -1121,7 +1121,7 @@ cats = [
     ("Integrations", [
         "Razorpay Orders API (real)",
         "Twilio Verify (real OTP)",
-        "OpenAI GPT-4.1",
+        "OpenAI GPT-5.4",
         "Open-Meteo (free)",
         "AQICN (air quality)",
         "Google Maps JS API",
