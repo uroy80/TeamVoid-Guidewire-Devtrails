@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { demo } from '../api/client';
 import ThemeToggle from '../components/ThemeToggle';
+import Logo from '../components/Logo';
 
 interface BASBreakdown {
   gps_authenticity: number;
@@ -292,7 +293,7 @@ export default function Demo() {
         {/* Title */}
         <div className="text-center mb-8 slide-up" style={{ animationDelay: '0.1s' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 8 }}>
-            <img src="/logos/gigshield.png" alt="GigShield" style={{ width: 40, height: 40, borderRadius: 10 }} />
+            <Logo style={{ width: 40, height: 40, borderRadius: 10 }} />
             <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
               Anti-Spoofing <span className="text-gradient">Demo</span>
             </h1>

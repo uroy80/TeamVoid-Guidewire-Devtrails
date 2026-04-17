@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { admin } from '../../api/client';
 import ThemeToggle from '../../components/ThemeToggle';
+import Logo from '../../components/Logo';
 
 interface Worker {
   id: string;
@@ -302,7 +303,7 @@ const AdminUsers: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </Link>
-            <img src="/logos/gigshield.png" alt="GigShield" className="w-9 h-9 rounded-lg" />
+            <Logo className="w-9 h-9 rounded-lg" />
             <div>
               <h1 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>User Management</h1>
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Manage gig workers and their profiles</p>

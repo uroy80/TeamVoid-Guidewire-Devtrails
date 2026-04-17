@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import ThemeToggle from '../components/ThemeToggle';
 import LanguageSwitcher from '../components/LanguageSwitcher';
+import Logo from '../components/Logo';
 
 export default function Welcome() {
   const navigate = useNavigate();
@@ -41,9 +42,7 @@ export default function Welcome() {
       {/* Logo with glow */}
       <div className="slide-up mb-6">
         <div className="pulse-ring float">
-          <img
-            src="/logos/gigshield.png"
-            alt="GigShield"
+          <Logo
             className="w-20 h-20 rounded-2xl"
             style={{ boxShadow: '0 0 40px rgba(59, 130, 246, 0.3)' }}
           />

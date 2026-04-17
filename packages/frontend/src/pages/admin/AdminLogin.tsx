@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { auth } from '../../api/client';
 import { useStore } from '../../store/store';
 import ThemeToggle from '../../components/ThemeToggle';
+import Logo from '../../components/Logo';
 
 const AdminLogin: React.FC = () => {
   const navigate = useNavigate();
@@ -36,7 +37,7 @@ const AdminLogin: React.FC = () => {
         {/* Logo */}
         <div className="text-center mb-8 slide-up">
           <div className="pulse-ring float inline-block">
-            <img src="/logos/gigshield.png" alt="GigShield" className="w-16 h-16 rounded-2xl" style={{ boxShadow: '0 0 40px rgba(99, 102, 241, 0.3)' }} />
+            <Logo className="w-16 h-16 rounded-2xl" style={{ boxShadow: '0 0 40px rgba(99, 102, 241, 0.3)' }} />
           </div>
           <h1 className="text-2xl font-extrabold mt-4" style={{ color: 'var(--text-primary)' }}>
             GigShield <span className="text-gradient">Admin</span>

@@ -6,6 +6,7 @@ import { useGoogleMaps } from '../hooks/useGoogleMaps';
 import { useStore } from '../store/store';
 import useEventStream from '../hooks/useEventStream';
 import ThemeToggle from '../components/ThemeToggle';
+import Logo from '../components/Logo';
 import LiveOpsFeed from '../components/LiveOpsFeed';
 
 interface OverviewData {
@@ -263,7 +264,7 @@ const AdminDashboard: React.FC = () => {
       <header className="glass border-b sticky top-0 z-40" style={{ borderColor: 'var(--border)' }}>
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logos/gigshield.png" alt="GigShield" className="w-9 h-9 rounded-lg" />
+            <Logo className="w-9 h-9 rounded-lg" />
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>GigShield Admin</h1>
