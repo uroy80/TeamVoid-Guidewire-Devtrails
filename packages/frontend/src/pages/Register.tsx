@@ -52,6 +52,36 @@ export default function Register() {
   const navigate = useNavigate();
   const setWorkerStore = useStore((s) => s.setWorker);
 
+  // Safety net: if a returning user somehow lands here (stale bookmark,
+  // deep link, Login flow edge case where the mobile lookup missed), skip
+  // the registration UI entirely and take them to the dashboard.
+  const [checkingExisting, setCheckingExisting] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const token = localStorage.getItem('gs_token');
+      if (!token) {
+        if (!cancelled) setCheckingExisting(false);
+        return;
+      }
+      try {
+        const { data } = await worker.getMe();
+        if (cancelled) return;
+        if (data?.id) {
+          // Already registered — hydrate the store and bounce to dashboard.
+          setWorkerStore(data);
+          navigate('/dashboard', { replace: true });
+          return;
+        }
+      } catch {
+        // Not registered yet (or token invalid) — fall through to the form.
+      }
+      if (!cancelled) setCheckingExisting(false);
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -248,6 +278,20 @@ export default function Register() {
   };
 
   const currentPlatform = PLATFORMS.find((p) => p.id === platform);
+
+  // While we're checking whether this is a returning user, show a
+  // neutral spinner — prevents the platform picker from flashing before
+  // we redirect an already-registered worker to the dashboard.
+  if (checkingExisting) {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ background: 'var(--bg-primary)' }}
+      >
+        <div className="w-10 h-10 border-4 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col px-6 py-8" style={{ background: 'var(--bg-primary)' }}>
