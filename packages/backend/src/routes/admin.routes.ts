@@ -3,6 +3,8 @@ import { requireAuth, requireAdmin, type AuthRequest } from '../middleware/auth.
 import * as claimService from '../services/claim.service.js';
 import * as auditService from '../services/audit.service.js';
 import * as linkageService from '../services/linkage.service.js';
+import * as payoutService from '../services/payout.service.js';
+import { listGateways, type GatewayName } from '../external/payments/index.js';
 import { db } from '../config/database.js';
 import {
   generateRiskNarrative,
@@ -412,6 +414,7 @@ router.get('/claims', async (req: AuthRequest, res: Response) => {
         'c.*',
         'w.name as worker_name',
         'w.mobile as worker_mobile',
+        'w.payment_upi as worker_upi',
         'p.coverage_level as policy_tier',
         'de.event_type as event_type',
         'de.severity as severity',
@@ -459,6 +462,7 @@ router.get('/claims/:id', async (req: AuthRequest, res: Response) => {
         'c.*',
         'w.name as worker_name',
         'w.mobile as worker_mobile',
+        'w.payment_upi as worker_upi',
         'p.coverage_level as policy_tier',
         'de.event_type as event_type',
         'de.severity as severity',
@@ -690,6 +694,105 @@ router.get('/claims/:id/ai-assessment', async (req: AuthRequest, res: Response) 
     res.json({ assessment });
   } catch (err) {
     console.error('[AdminRoutes] Error generating AI claim assessment:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Instant Payout — admin-triggered disbursement + audit reads
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * GET /admin/payouts/gateways
+ * Lists the simulated gateways the admin UI can offer in the "Send Payout"
+ * modal. Each row carries display metadata (brand color, display name) so
+ * the receipt UI can render the correct theme without hard-coding it
+ * against the GatewayName enum.
+ */
+router.get('/payouts/gateways', async (_req: AuthRequest, res: Response) => {
+  try {
+    const gateways = listGateways().map((g) => ({
+      name: g.name,
+      display_name: g.displayName,
+      brand_color: g.brandColor,
+      payment_method: g.paymentMethod,
+    }));
+    res.json({ gateways });
+  } catch (err) {
+    console.error('[AdminRoutes] Error listing gateways:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /admin/claims/:id/payout
+ * Kick off the instant-payout state machine for an APPROVED claim.
+ * Body: { gateway?: 'RAZORPAY' | 'STRIPE' | 'UPI' }  — override auto-selection.
+ *
+ * Returns the PROCESSING payout row immediately. The settlement update
+ * lands out-of-band via SSE ~2–4 s later.
+ */
+router.post('/claims/:id/payout', async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const gateway = req.body?.gateway as GatewayName | undefined;
+
+    const claim = await db('claims').where({ id }).first();
+    if (!claim) {
+      res.status(404).json({ error: 'Claim not found' });
+      return;
+    }
+    if (claim.status !== 'APPROVED' && claim.status !== 'PAID') {
+      res.status(400).json({
+        error: `Claim status must be APPROVED to trigger a payout (current: ${claim.status})`,
+      });
+      return;
+    }
+
+    const payout = await payoutService.initiatePayout(id, {
+      gatewayOverride: gateway,
+      source: 'ADMIN_MANUAL',
+      actorId: req.workerId ?? 'admin',
+    });
+
+    try {
+      await auditService.appendAuditEntry({
+        actor_id: req.workerId ?? 'admin',
+        action: 'PAYOUT_INITIATE',
+        resource_type: 'payout',
+        resource_id: payout.id,
+        metadata: { claim_id: id, gateway_override: gateway ?? null },
+      });
+    } catch {
+      /* non-fatal */
+    }
+
+    res.json({ payout });
+  } catch (err: any) {
+    if (err.message?.includes('not found')) {
+      res.status(404).json({ error: err.message });
+      return;
+    }
+    console.error('[AdminRoutes] Error initiating payout:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /admin/claims/:id/payout
+ * Fetch the latest payout row for a claim — used by the admin UI to
+ * poll if SSE is unavailable and to render the timeline on page load.
+ */
+router.get('/claims/:id/payout', async (req: AuthRequest, res: Response) => {
+  try {
+    const payout = await payoutService.getByClaim(req.params.id);
+    if (!payout) {
+      res.status(404).json({ error: 'No payout yet for this claim' });
+      return;
+    }
+    res.json({ payout });
+  } catch (err) {
+    console.error('[AdminRoutes] Error fetching payout:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

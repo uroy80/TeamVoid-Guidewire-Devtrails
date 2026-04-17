@@ -1,8 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { admin } from '../../api/client';
 import ThemeToggle from '../../components/ThemeToggle';
 import Logo from '../../components/Logo';
+import SendPayoutModal from '../../components/SendPayoutModal';
+import useEventStream from '../../hooks/useEventStream';
+import type { TimelineStatus } from '../../components/PayoutTimeline';
 
 interface AdminClaim {
   id: string;
@@ -10,6 +13,7 @@ interface AdminClaim {
   worker_id: string;
   worker_name?: string;
   worker_mobile?: string;
+  worker_upi?: string;
   policy_id?: string;
   policy_tier?: string;
   zone_name?: string;
@@ -24,6 +28,18 @@ interface AdminClaim {
   created_at?: string;
   resolved_at?: string;
   resolution_reason?: string;
+}
+
+interface PayoutEventPayload {
+  claim_id: string;
+  status?: string;
+  gateway?: 'RAZORPAY' | 'STRIPE' | 'UPI';
+  transaction_ref?: string | null;
+  utr_number?: string | null;
+  net_amount?: number;
+  fee_amount?: number;
+  tax_amount?: number;
+  reason?: string;
 }
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
@@ -48,6 +64,32 @@ export default function AdminClaims() {
   const [reason, setReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [payoutModal, setPayoutModal] = useState<AdminClaim | null>(null);
+
+  // Subscribe to the admin SSE feed so we can pipe live payout status into
+  // the modal (and into the row badge while it's in-flight).
+  const token = typeof window !== 'undefined' ? localStorage.getItem('gs_token') : null;
+  const { events: stream } = useEventStream(token);
+
+  // Map of claim_id → latest payout-related event payload, distilled from
+  // the SSE stream so the modal and the row both reflect reality in real time.
+  const livePayoutByClaim = useMemo(() => {
+    const byClaim: Record<string, { status: TimelineStatus; payload: PayoutEventPayload }> = {};
+    for (const evt of stream) {
+      if (!evt?.type || !String(evt.type).startsWith('PAYOUT_')) continue;
+      const p = (evt.payload || {}) as PayoutEventPayload;
+      if (!p.claim_id) continue;
+      const mapped: TimelineStatus =
+        evt.type === 'PAYOUT_INITIATED'  ? 'INITIATED'  :
+        evt.type === 'PAYOUT_PROCESSING' ? 'PROCESSING' :
+        evt.type === 'PAYOUT_SENT'       ? 'SUCCESS'    :
+        evt.type === 'PAYOUT_FAILED'     ? 'FAILED'     :
+        (p.status as TimelineStatus) || 'PROCESSING';
+      // Newer events win (stream is already newest-first).
+      if (!byClaim[p.claim_id]) byClaim[p.claim_id] = { status: mapped, payload: p };
+    }
+    return byClaim;
+  }, [stream]);
 
   const showToast = useCallback((message: string, type: 'success' | 'error') => {
     setToast({ message, type });
@@ -141,6 +183,38 @@ export default function AdminClaims() {
         >
           {toast.message}
         </div>
+      )}
+
+      {/* Send Payout modal */}
+      {payoutModal && (
+        <SendPayoutModal
+          claimId={payoutModal.id}
+          claimNumber={payoutModal.claim_number}
+          workerName={payoutModal.worker_name}
+          workerUpi={payoutModal.worker_upi}
+          grossAmount={Number(payoutModal.income_loss_payout ?? 0)}
+          liveStatus={livePayoutByClaim[payoutModal.id]?.status ?? null}
+          livePayout={
+            livePayoutByClaim[payoutModal.id]
+              ? {
+                  status: livePayoutByClaim[payoutModal.id].status,
+                  gateway: livePayoutByClaim[payoutModal.id].payload.gateway ?? null,
+                  transaction_ref: livePayoutByClaim[payoutModal.id].payload.transaction_ref ?? null,
+                  utr_number: livePayoutByClaim[payoutModal.id].payload.utr_number ?? null,
+                  fee_amount: livePayoutByClaim[payoutModal.id].payload.fee_amount ?? null,
+                  tax_amount: livePayoutByClaim[payoutModal.id].payload.tax_amount ?? null,
+                  net_amount: livePayoutByClaim[payoutModal.id].payload.net_amount ?? null,
+                  failure_reason: livePayoutByClaim[payoutModal.id].payload.reason ?? null,
+                }
+              : null
+          }
+          onClose={() => {
+            setPayoutModal(null);
+            // When a payout settles the claim flips to PAID on the backend —
+            // reload so the row badge reflects that.
+            loadClaims();
+          }}
+        />
       )}
 
       {/* Approve / Reject modal */}
@@ -288,6 +362,8 @@ export default function AdminClaims() {
                       ? (() => { try { return JSON.parse(c.fraud_check_details).bas_score; } catch { return null; } })()
                       : c.fraud_check_details?.bas_score);
                   const canAct = ['PENDING', 'UNDER_REVIEW', 'FLAGGED'].includes(c.status);
+                  const canPay = ['APPROVED', 'PAID'].includes(c.status);
+                  const live = livePayoutByClaim[c.id];
                   return (
                     <>
                       <tr key={c.id} style={{ borderTop: '1px solid var(--border)' }}>
@@ -309,12 +385,30 @@ export default function AdminClaims() {
                           {basScore != null ? `${basScore}/100` : '—'}
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <span
-                            className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider"
-                            style={{ background: sc.bg, color: sc.text }}
-                          >
-                            {c.status.replace('_', ' ')}
-                          </span>
+                          <div className="flex flex-col items-center gap-1">
+                            <span
+                              className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider"
+                              style={{ background: sc.bg, color: sc.text }}
+                            >
+                              {c.status.replace('_', ' ')}
+                            </span>
+                            {live && live.status !== 'SUCCESS' && (
+                              <span
+                                className="px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-wide flex items-center gap-1"
+                                style={{
+                                  background: live.status === 'FAILED' ? 'rgba(239,68,68,0.15)' : 'rgba(59,130,246,0.15)',
+                                  color: live.status === 'FAILED' ? '#ef4444' : '#60a5fa',
+                                }}
+                              >
+                                <span className={`w-1.5 h-1.5 rounded-full ${live.status === 'FAILED' ? 'bg-red-400' : 'bg-blue-400 animate-pulse'}`} />
+                                {live.status === 'INITIATED' ? 'Payout starting' :
+                                 live.status === 'PROCESSING' ? 'Bank transfer' :
+                                 live.status === 'RETRYING' ? 'Retrying' :
+                                 live.status === 'FAILED' ? 'Payout failed' :
+                                 'Payout'}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-2">
@@ -339,6 +433,16 @@ export default function AdminClaims() {
                                   Reject
                                 </button>
                               </>
+                            )}
+                            {canPay && (
+                              <button
+                                onClick={() => setPayoutModal(c)}
+                                className="px-3 py-1 bg-violet-600/20 border border-violet-500/30 text-violet-400 rounded-lg text-xs font-medium hover:bg-violet-600/30 flex items-center gap-1"
+                                title={c.status === 'PAID' ? 'View payout receipt' : 'Send payout now'}
+                              >
+                                <i className="ri-send-plane-fill text-xs" />
+                                {c.status === 'PAID' ? 'Receipt' : 'Send Payout'}
+                              </button>
                             )}
                           </div>
                         </td>

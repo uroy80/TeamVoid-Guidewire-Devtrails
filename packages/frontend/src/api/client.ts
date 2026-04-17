@@ -164,6 +164,7 @@ export const policy = {
 export const claims = {
   getClaims: () => api.get('/claims'),
   getClaim: (id: string) => api.get(`/claims/${id}`),
+  getPayout: (claimId: string) => api.get(`/claims/${claimId}/payout`),
   requestClaim: (data: { disruption_type: string; description: string; latitude: number; longitude: number; device_fingerprint?: string }) =>
     api.post('/claims/request', data),
 };
@@ -218,6 +219,11 @@ export const admin = {
   // ── Actuarial (Wave 2) ───────────────────────────────────
   getActuarialOverview: () => api.get('/admin/actuarial/overview'),
   getActuarialByZone: () => api.get('/admin/actuarial/by-zone'),
+  // ── Instant Payouts ──────────────────────────────────────
+  getPayoutGateways: () => api.get('/admin/payouts/gateways'),
+  getClaimPayout: (claimId: string) => api.get(`/admin/claims/${claimId}/payout`),
+  sendPayout: (claimId: string, gateway?: 'RAZORPAY' | 'STRIPE' | 'UPI') =>
+    api.post(`/admin/claims/${claimId}/payout`, gateway ? { gateway } : {}),
 };
 
 // ── Demo ───────────────────────────────────────────────────

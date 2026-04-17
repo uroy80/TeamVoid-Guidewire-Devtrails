@@ -119,6 +119,44 @@ export default function Dashboard() {
   useEffect(() => {
     let mounted = true;
 
+    // Triggered when a claim transitions → PAID. Fetch the settled payout
+    // row so the celebration toast shows the *net* amount (after fees) and
+    // the UTR — matches the bank SMS the worker just got. Falls back to
+    // gross if the GET fails for any reason (we never want to swallow the
+    // celebration just because the receipt lookup glitched).
+    const celebratePaid = async (claim: any) => {
+      const gateway_label: Record<string, string> = {
+        RAZORPAY: 'Razorpay',
+        STRIPE: 'Stripe',
+        UPI: 'UPI Direct',
+      };
+      let amountText = `\u20B9${claim.income_loss_payout ?? claim.payout_amount ?? 0}`;
+      let extra = claim.disruption_type || 'Disruption';
+      try {
+        const res = await claimsApi.getPayout(claim.id);
+        const p = res.data?.payout;
+        if (p) {
+          const net = Number(p.net_amount ?? 0);
+          if (net > 0) amountText = `\u20B9${net.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+          const rail = p.gateway ? gateway_label[p.gateway] : null;
+          const utr = p.utr_number;
+          extra = [rail ? `via ${rail}` : null, utr ? `UTR ${utr}` : null]
+            .filter(Boolean)
+            .join(' \u00b7 ') || extra;
+        }
+      } catch { /* silent — show the fallback */ }
+
+      toast.success(`\uD83C\uDF89 ${amountText} credited! ${extra}`, { duration: 7000 });
+      try {
+        confetti({ particleCount: 160, spread: 90, origin: { y: 0.6 } });
+        // Second burst 300ms later for a richer feel — matches the SMS+app
+        // double-notification moment workers get when money actually lands.
+        setTimeout(() => {
+          try { confetti({ particleCount: 80, spread: 110, origin: { y: 0.55 } }); } catch { /* ignore */ }
+        }, 300);
+      } catch { /* ignore */ }
+    };
+
     const pollClaims = async () => {
       try {
         const res = await claimsApi.getClaims();
@@ -135,15 +173,15 @@ export default function Dashboard() {
           // only announce when status changed (or it's newly seen after first snapshot)
           if (prevStatus && prevStatus !== status) {
             if (status === 'PAID') {
-              const amount = c.income_loss_payout ?? c.payout_amount ?? 0;
-              toast.success(`🎉 ₹${amount} received! ${c.disruption_type || 'Disruption'}`);
-              try {
-                confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
-              } catch { /* ignore */ }
+              celebratePaid(c);
             } else if (status === 'APPROVED') {
-              toast(`Claim ${c.claim_number || ''} approved — payout processing`);
+              toast(`Claim ${c.claim_number || ''} approved \u2014 payout processing`, {
+                icon: '\u2705',
+              });
             } else if (status === 'UNDER_REVIEW') {
               toast.info('Claim submitted, admin reviewing');
+            } else if (status === 'REJECTED') {
+              toast.error(`Claim ${c.claim_number || ''} rejected`);
             }
           }
         }

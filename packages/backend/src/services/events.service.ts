@@ -14,7 +14,10 @@ export type EventType =
   | 'TRIGGER_FIRED'       // Weather threshold breached, disruption event created
   | 'CLAIM_CREATED'       // Claim auto-generated OR manually requested
   | 'FRAUD_CHECKED'       // BAS scoring completed on a claim
-  | 'PAYOUT_SENT'         // Money disbursed to worker
+  | 'PAYOUT_INITIATED'    // Admin kicked off a payout — gateway call starting
+  | 'PAYOUT_PROCESSING'   // Gateway accepted; waiting on bank-side settlement
+  | 'PAYOUT_SENT'         // Money settled on beneficiary UPI / bank account
+  | 'PAYOUT_FAILED'       // Terminal failure after retries
   | 'WORKER_REGISTERED'   // New worker signed up
   | 'POLICY_CREATED'      // Worker purchased a policy
   | 'COMMUNITY_REPORT';   // Hyperlocal condition report from a worker

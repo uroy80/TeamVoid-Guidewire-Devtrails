@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { claims as claimsApi } from '../api/client';
 import ThemeToggle from '../components/ThemeToggle';
 import RequestClaimForm from '../components/RequestClaimForm';
+import PayoutTimeline, { type TimelineStatus } from '../components/PayoutTimeline';
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   CREATED: { bg: 'rgba(59, 130, 246, 0.15)', text: '#3b82f6' },
@@ -21,6 +22,37 @@ const DISRUPTION_ICONS: Record<string, string> = {
   CYCLONE: 'ri-tornado-line',
 };
 
+// Gateway brand metadata is static — keep it in sync with the backend
+// `external/payments/*.mock.ts` classes. Duplicated here (not fetched from
+// `/admin/payouts/gateways`) because workers don't have admin auth.
+const GATEWAY_META: Record<string, { label: string; color: string; rail: string; icon: string }> = {
+  RAZORPAY: { label: 'Razorpay Payouts', color: '#3395FF', rail: 'IMPS', icon: 'ri-bank-card-line' },
+  STRIPE:   { label: 'Stripe Connect',   color: '#635BFF', rail: 'Bank Transfer', icon: 'ri-bank-line' },
+  UPI:      { label: 'UPI Direct',       color: '#0E7C3A', rail: 'NPCI IMPS', icon: 'ri-qr-code-line' },
+};
+
+interface PayoutRow {
+  id: string;
+  claim_id: string;
+  amount: number | string;
+  status: TimelineStatus;
+  gateway: 'RAZORPAY' | 'STRIPE' | 'UPI' | null;
+  transaction_ref: string | null;
+  utr_number: string | null;
+  fee_amount: number | string | null;
+  tax_amount: number | string | null;
+  net_amount: number | string | null;
+  initiated_at: string | null;
+  processing_at: string | null;
+  settled_at: string | null;
+  failed_at: string | null;
+  failure_reason: string | null;
+}
+
+// Loading sentinel so we don't re-fetch a claim's payout on every expand.
+// 'none' = fetched + 404 (no payout yet), 'loading' = in-flight request.
+type PayoutState = PayoutRow | 'none' | 'loading';
+
 export default function Claims() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -29,6 +61,10 @@ export default function Claims() {
   const [error, setError] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showRequestForm, setShowRequestForm] = useState(false);
+  // Per-claim payout cache. We lazily fetch on first expand so the claims
+  // list itself stays snappy (no N+1 GETs up front) but once a worker has
+  // expanded a claim the receipt stays populated for the rest of the session.
+  const [payouts, setPayouts] = useState<Record<string, PayoutState>>({});
 
   // Normalize snake_case API response to camelCase for display
   const normalizeClaim = (c: any) => ({
@@ -70,7 +106,23 @@ export default function Claims() {
   }, [searchParams, setSearchParams]);
 
   const toggleExpand = (id: string) => {
-    setExpandedId(expandedId === id ? null : id);
+    const next = expandedId === id ? null : id;
+    setExpandedId(next);
+    // Lazily fetch the payout the first time a claim opens. 404 is expected
+    // for unapproved claims — cache it as 'none' so we don't retry on every
+    // collapse/expand cycle.
+    if (next && payouts[next] === undefined) {
+      setPayouts((prev) => ({ ...prev, [next]: 'loading' }));
+      claimsApi
+        .getPayout(next)
+        .then((res) => {
+          const payout = res.data?.payout ?? null;
+          setPayouts((prev) => ({ ...prev, [next]: payout ?? 'none' }));
+        })
+        .catch(() => {
+          setPayouts((prev) => ({ ...prev, [next]: 'none' }));
+        });
+    }
   };
 
   if (loading) {
@@ -207,6 +259,9 @@ export default function Claims() {
                     ))}
                   </div>
 
+                  {/* Payout receipt — only renders once we've actually fetched */}
+                  <PayoutReceipt state={payouts[claimId]} />
+
                   {/* Fraud/BAS analysis is an internal risk signal — hidden from worker view */}
                 </div>
               )}
@@ -214,6 +269,199 @@ export default function Claims() {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Payout receipt card — renders inside a claim's expanded section.
+ *
+ * Three display modes:
+ *   - null/loading/none → render nothing (keeps the UI quiet for unapproved claims)
+ *   - in-flight (INITIATED/PROCESSING/RETRYING) → show the animated timeline
+ *   - terminal (SUCCESS/FAILED) → show the gateway-branded receipt with UTR,
+ *     transaction ref, fee breakdown, and net amount credited
+ *
+ * The gateway brand stripe along the top is what makes this feel like a real
+ * bank receipt. The UTR is rendered monospace-large because workers recognize
+ * UTRs from their bank SMS — seeing the same number here builds trust.
+ */
+function PayoutReceipt({ state }: { state: PayoutState | undefined }) {
+  if (!state || state === 'loading' || state === 'none') return null;
+
+  const payout = state;
+  const status = payout.status;
+  const inFlight = status === 'INITIATED' || status === 'PROCESSING' || status === 'RETRYING';
+  const failed = status === 'FAILED';
+  const settled = status === 'SUCCESS';
+
+  const meta = payout.gateway ? GATEWAY_META[payout.gateway] : null;
+  const brandColor = meta?.color ?? 'var(--accent)';
+  const brandLabel = meta?.label ?? 'Payout';
+  const brandIcon = meta?.icon ?? 'ri-send-plane-line';
+  const brandRail = meta?.rail ?? '';
+
+  const settledTs = payout.settled_at
+    ? new Date(payout.settled_at).toLocaleString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : null;
+
+  return (
+    <div
+      className="mt-3 rounded-xl overflow-hidden"
+      style={{ background: 'var(--bg-card)', border: `1px solid ${brandColor}33` }}
+    >
+      {/* Brand stripe — the coloured band that makes this look like a bank receipt */}
+      <div className="h-1" style={{ background: brandColor }} />
+
+      <div className="p-4">
+        {/* Header: gateway + status */}
+        <div className="flex items-center gap-2.5 mb-3">
+          <div
+            className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: `${brandColor}1a` }}
+          >
+            <i className={`${brandIcon} text-lg`} style={{ color: brandColor }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
+              {brandLabel}
+            </p>
+            <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+              {brandRail}
+              {settledTs ? ` · ${settledTs}` : ''}
+            </p>
+          </div>
+          {settled && (
+            <div
+              className="flex items-center gap-1 px-2 py-1 rounded-full"
+              style={{ background: 'rgba(16,185,129,0.15)' }}
+            >
+              <i className="ri-check-double-line text-[11px]" style={{ color: '#10b981' }} />
+              <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#10b981' }}>
+                Settled
+              </span>
+            </div>
+          )}
+          {failed && (
+            <div
+              className="flex items-center gap-1 px-2 py-1 rounded-full"
+              style={{ background: 'rgba(239,68,68,0.15)' }}
+            >
+              <i className="ri-error-warning-line text-[11px]" style={{ color: '#ef4444' }} />
+              <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#ef4444' }}>
+                Failed
+              </span>
+            </div>
+          )}
+          {inFlight && (
+            <div
+              className="flex items-center gap-1 px-2 py-1 rounded-full"
+              style={{ background: 'rgba(59,130,246,0.15)' }}
+            >
+              <span
+                className="w-1.5 h-1.5 rounded-full animate-pulse"
+                style={{ background: '#3b82f6' }}
+              />
+              <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#3b82f6' }}>
+                In progress
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Timeline always visible — animates for in-flight, frozen for terminal */}
+        <div className="mb-3">
+          <PayoutTimeline
+            status={status}
+            initiatedAt={payout.initiated_at}
+            processingAt={payout.processing_at}
+            settledAt={payout.settled_at}
+            failedAt={payout.failed_at}
+            failureReason={payout.failure_reason}
+            compact
+          />
+        </div>
+
+        {/* Net amount — big & celebratory when settled */}
+        {settled && (
+          <div
+            className="p-3 rounded-xl text-center mb-3"
+            style={{ background: `${brandColor}10` }}
+          >
+            <p className="text-[10px] uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+              Credited to your account
+            </p>
+            <p className="text-2xl font-bold mt-0.5" style={{ color: brandColor }}>
+              &#8377;{Number(payout.net_amount ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+            </p>
+          </div>
+        )}
+
+        {/* Receipt rows — UTR, fees, net. Only meaningful once we have values. */}
+        {(settled || (payout.utr_number || payout.transaction_ref)) && (
+          <div className="space-y-1.5 text-xs">
+            {payout.utr_number && (
+              <ReceiptRow label="UTR" value={payout.utr_number} mono highlight />
+            )}
+            {payout.transaction_ref && (
+              <ReceiptRow label="Txn ID" value={payout.transaction_ref} mono tiny />
+            )}
+            <ReceiptRow label="Gross" value={`\u20B9${Number(payout.amount ?? 0).toLocaleString('en-IN')}`} />
+            {Number(payout.fee_amount ?? 0) > 0 && (
+              <ReceiptRow label="Gateway fee" value={`\u2212 \u20B9${Number(payout.fee_amount ?? 0).toFixed(2)}`} muted />
+            )}
+            {Number(payout.tax_amount ?? 0) > 0 && (
+              <ReceiptRow label="GST (18% on fee)" value={`\u2212 \u20B9${Number(payout.tax_amount ?? 0).toFixed(2)}`} muted />
+            )}
+          </div>
+        )}
+
+        {/* Failure reason — only shows if the gateway gave us one */}
+        {failed && payout.failure_reason && (
+          <div
+            className="mt-3 p-2.5 rounded-lg text-[11px]"
+            style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}
+          >
+            <i className="ri-information-line mr-1" />
+            {payout.failure_reason}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ReceiptRow({
+  label,
+  value,
+  mono,
+  tiny,
+  muted,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  tiny?: boolean;
+  muted?: boolean;
+  highlight?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+        {label}
+      </span>
+      <span
+        className={`${mono ? 'font-mono' : ''} ${tiny ? 'text-[10px]' : 'text-xs'} ${highlight ? 'font-semibold' : ''}`}
+        style={{ color: muted ? 'var(--text-muted)' : 'var(--text-primary)' }}
+      >
+        {value}
+      </span>
     </div>
   );
 }

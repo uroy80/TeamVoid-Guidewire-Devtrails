@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import * as claimService from '../services/claim.service.js';
 import * as fraudService from '../services/fraud.service.js';
+import * as payoutService from '../services/payout.service.js';
 
 const router = Router();
 
@@ -86,6 +87,42 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
       return;
     }
     console.error('[ClaimRoutes] Error fetching claim:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /claims/:id/payout
+ * Worker: fetch the payout row for one of their claims. Returns 404 until
+ * a payout has been initiated — frontend treats that as "no payout yet".
+ *
+ * Worker sees the same shape as admin, minus the raw gateway_response blob
+ * (which contains internal fields not meant for end-users).
+ */
+router.get('/:id/payout', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const claim = await claimService.getById(req.params.id);
+    if (claim.worker_id !== req.workerId && !req.isAdmin) {
+      res.status(403).json({ error: 'Access denied' });
+      return;
+    }
+
+    const payout = await payoutService.getByClaim(req.params.id);
+    if (!payout) {
+      res.status(404).json({ error: 'No payout yet for this claim' });
+      return;
+    }
+
+    // Strip the gateway_response blob — it's internal. Workers get the
+    // receipt-friendly subset: amounts, UTR, timestamps, status.
+    const { gateway_response, ...safe } = payout as any;
+    res.json({ payout: safe });
+  } catch (err: any) {
+    if (err.message?.includes('not found')) {
+      res.status(404).json({ error: err.message });
+      return;
+    }
+    console.error('[ClaimRoutes] Error fetching payout:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
