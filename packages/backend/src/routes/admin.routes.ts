@@ -300,16 +300,28 @@ router.get('/claims', async (req: AuthRequest, res: Response) => {
     const pageLimit = Math.min(Number(limit) || 50, 200);
     const pageOffset = Number(offset) || 0;
 
+    // Join the disruption_events row that the claim was generated against —
+    // that's where event_type/severity live (claims table doesn't carry them).
+    // We also join the event's zone so admins see where the disruption hit,
+    // not where the worker happens to be based.
     let query = db('claims as c')
       .leftJoin('workers as w', 'c.worker_id', 'w.id')
       .leftJoin('policies as p', 'c.policy_id', 'p.id')
-      .leftJoin('delivery_zones as dz', 'w.delivery_zone_id', 'dz.id')
+      .leftJoin('disruption_events as de', 'c.disruption_event_id', 'de.id')
+      .leftJoin('delivery_zones as edz', 'de.delivery_zone_id', 'edz.id')
+      .leftJoin('delivery_zones as wdz', 'w.delivery_zone_id', 'wdz.id')
       .select(
         'c.*',
         'w.name as worker_name',
         'w.mobile as worker_mobile',
         'p.coverage_level as policy_tier',
-        'dz.name as zone_name',
+        'de.event_type as event_type',
+        'de.severity as severity',
+        'de.event_timestamp as event_timestamp',
+        'de.verified_by_sources as event_sources',
+        // Coalesce: prefer event's zone (the place the disruption happened),
+        // fall back to worker's home zone so the column is never empty.
+        db.raw('COALESCE(edz.name, wdz.name) as zone_name'),
       )
       .orderBy('c.created_at', 'desc');
 
@@ -342,11 +354,20 @@ router.get('/claims/:id', async (req: AuthRequest, res: Response) => {
     const claim = await db('claims as c')
       .leftJoin('workers as w', 'c.worker_id', 'w.id')
       .leftJoin('policies as p', 'c.policy_id', 'p.id')
+      .leftJoin('disruption_events as de', 'c.disruption_event_id', 'de.id')
+      .leftJoin('delivery_zones as edz', 'de.delivery_zone_id', 'edz.id')
+      .leftJoin('delivery_zones as wdz', 'w.delivery_zone_id', 'wdz.id')
       .select(
         'c.*',
         'w.name as worker_name',
         'w.mobile as worker_mobile',
         'p.coverage_level as policy_tier',
+        'de.event_type as event_type',
+        'de.severity as severity',
+        'de.event_timestamp as event_timestamp',
+        'de.verified_by_sources as event_sources',
+        'de.duration_estimate_hours as event_duration_hours',
+        db.raw('COALESCE(edz.name, wdz.name) as zone_name'),
       )
       .where('c.id', id)
       .first();

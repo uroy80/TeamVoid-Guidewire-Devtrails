@@ -20,6 +20,15 @@ const CLUSTER_MIN_REPORTS = 3;
 const TRUST_BOOST_ON_API_CONFIRM = 20;
 const TRUST_BOOST_ON_CLUSTER = 5;
 
+// ─── Anti-collusion thresholds ────────────────────────────────────────────────
+// A ring of fraudsters could otherwise trigger a "cluster" by submitting
+// three reports from the same phone, same home network, or three fresh
+// sock-puppet accounts. These guardrails make a real community signal hard
+// to fake without real people in real places.
+const MIN_TRUST_SCORE_TO_COUNT = 25;          // worker's trust must be ≥ this
+const MIN_ACCOUNT_AGE_HOURS    = 1;           // worker must have existed ≥ this
+const CLUSTER_MIN_DISTINCT_IPS = 3;           // must come from ≥ N unique IPs
+
 export interface SubmitReportInput {
   workerId: string;
   latitude: number;
@@ -74,7 +83,23 @@ export async function submitReport(input: SubmitReportInput): Promise<{
   // Check for a cluster
   const cluster = await findCluster(latitude, longitude, conditionType);
 
-  if (cluster.length >= CLUSTER_MIN_REPORTS) {
+  // Count DISTINCT workers and DISTINCT IP addresses. A collusion ring using
+  // three SIMs on one phone shows up as 3 reports but only 1 IP — which we
+  // treat as a single signal, not a confirmed cluster.
+  const distinctWorkers = new Set(cluster.map((r) => r.worker_id)).size;
+  const distinctIps = new Set(
+    cluster.map((r) => r.ip_address).filter((ip): ip is string => !!ip),
+  ).size;
+
+  const clusterQualifies =
+    cluster.length >= CLUSTER_MIN_REPORTS &&
+    distinctWorkers >= CLUSTER_MIN_REPORTS &&
+    // When every report has a known IP we require N distinct IPs; if some
+    // reports are missing an IP (old data, proxy, etc.) we fall back to
+    // the distinct-worker check alone so legitimate clusters still fire.
+    (distinctIps === 0 || distinctIps >= CLUSTER_MIN_DISTINCT_IPS);
+
+  if (clusterQualifies) {
     // Is there ALREADY a disruption event these reports are linked to?
     const linkedIds = cluster
       .map((r) => r.disruption_event_id)
@@ -167,19 +192,41 @@ async function findCluster(
   lat: number,
   lng: number,
   conditionType: ConditionType,
-): Promise<Array<{ id: string; worker_id: string; disruption_event_id: string | null; latitude: number; longitude: number }>> {
+): Promise<Array<{
+  id: string;
+  worker_id: string;
+  disruption_event_id: string | null;
+  latitude: number;
+  longitude: number;
+  ip_address: string | null;
+}>> {
   const windowMs = CLUSTER_WINDOW_MIN * 60 * 1000;
   const cutoff = new Date(Date.now() - windowMs);
+  const accountAgeCutoff = new Date(Date.now() - MIN_ACCOUNT_AGE_HOURS * 60 * 60 * 1000);
 
   // Rough bounding box ~2km = ~0.02deg
   const degBuffer = CLUSTER_RADIUS_KM / 111;
 
-  const rows = await db('community_reports')
-    .where('condition_type', conditionType)
-    .where('created_at', '>=', cutoff)
-    .whereBetween('latitude', [lat - degBuffer, lat + degBuffer])
-    .whereBetween('longitude', [lng - degBuffer, lng + degBuffer])
-    .select('id', 'worker_id', 'disruption_event_id', 'latitude', 'longitude');
+  // Pre-filter at the DB layer: only count reports whose reporter has been
+  // around long enough AND carries a trust score above the floor. This
+  // blocks sock-puppets (accounts created minutes ago) and workers whose
+  // trust has been demoted due to past false reports.
+  const rows = await db('community_reports as cr')
+    .join('workers as w', 'cr.worker_id', 'w.id')
+    .where('cr.condition_type', conditionType)
+    .where('cr.created_at', '>=', cutoff)
+    .whereBetween('cr.latitude', [lat - degBuffer, lat + degBuffer])
+    .whereBetween('cr.longitude', [lng - degBuffer, lng + degBuffer])
+    .where('w.trust_score', '>=', MIN_TRUST_SCORE_TO_COUNT)
+    .where('w.created_at', '<=', accountAgeCutoff)
+    .select(
+      'cr.id',
+      'cr.worker_id',
+      'cr.disruption_event_id',
+      'cr.latitude',
+      'cr.longitude',
+      'cr.ip_address',
+    );
 
   // Precise haversine filter
   return rows

@@ -69,7 +69,7 @@
   },
   "report": {
     "title": "Report a Condition",
-    "subtitle": "Your report helps protect other workers. If 3+ workers report the same condition nearby, everyone's claims auto-activate.",
+    "subtitle": "Your report helps protect other workers. When 3+ trusted workers (with distinct devices and accounts) report the same condition within 2km in 15 min, a disruption event is opened. Admin verifies against live weather data before any payouts.",
     "condition_rain": "Heavy Rain",
     "condition_flood": "Flooding",
     "condition_heat": "Extreme Heat",
