@@ -25,6 +25,18 @@ interface PayoutRow {
   settled_at: string | null;
   failed_at: string | null;
   failure_reason: string | null;
+  // Admin-only: full raw response from the gateway. Present when the payout
+  // was routed through the real Razorpay Orders API (contains an
+  // `_gigshield.dashboard_url` link the admin can click to inspect the order
+  // on Razorpay's dashboard).
+  gateway_response?: {
+    id?: string;
+    entity?: string;
+    _gigshield?: {
+      source?: 'razorpay_real_api' | 'razorpay_mock';
+      dashboard_url?: string;
+    };
+  } | null;
 }
 
 interface Props {
@@ -236,17 +248,57 @@ export default function SendPayoutModal({
         )}
 
         {/* Receipt (success only) */}
-        {terminal && effectiveStatus === 'SUCCESS' && payout && (
-          <div className="p-3 rounded-xl mb-5 text-xs" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-            <Row label="Gateway" value={payout.gateway ?? '—'} />
-            {payout.utr_number && <Row label="UTR" value={payout.utr_number} mono />}
-            {payout.transaction_ref && <Row label="Txn ID" value={payout.transaction_ref} mono tiny />}
-            <Row label="Fee" value={`₹${Number(payout.fee_amount ?? 0).toFixed(2)}`} />
-            <Row label="GST" value={`₹${Number(payout.tax_amount ?? 0).toFixed(2)}`} />
-            <div className="h-px my-1" style={{ background: 'var(--border)' }} />
-            <Row label="Net credited" value={`₹${Number(payout.net_amount ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`} strong />
-          </div>
-        )}
+        {terminal && effectiveStatus === 'SUCCESS' && payout && (() => {
+          // A transaction_ref starting with `order_` is a real Razorpay Order
+          // id we got back from api.razorpay.com — the admin can verify it in
+          // the Razorpay test dashboard. Also check the namespaced metadata
+          // we stash in gateway_response so a mock-with-the-same-prefix never
+          // masquerades as real.
+          const meta = payout.gateway_response?._gigshield;
+          const isRealRazorpay = meta?.source === 'razorpay_real_api';
+          const dashboardUrl =
+            meta?.dashboard_url ??
+            (isRealRazorpay && payout.transaction_ref
+              ? `https://dashboard.razorpay.com/app/orders/${payout.transaction_ref}`
+              : null);
+          return (
+            <div className="p-3 rounded-xl mb-5 text-xs" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+              <div className="flex items-center justify-between mb-1">
+                <span style={{ color: 'var(--text-muted)' }}>Gateway</span>
+                <div className="flex items-center gap-1.5">
+                  <span style={{ color: 'var(--text-secondary)' }}>{payout.gateway ?? '—'}</span>
+                  {isRealRazorpay && (
+                    <span
+                      className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide"
+                      style={{ background: 'rgba(51, 149, 255, 0.18)', color: '#3395FF' }}
+                      title="Order was created via a live call to api.razorpay.com"
+                    >
+                      Real API
+                    </span>
+                  )}
+                </div>
+              </div>
+              {payout.utr_number && <Row label="UTR" value={payout.utr_number} mono />}
+              {payout.transaction_ref && <Row label="Txn ID" value={payout.transaction_ref} mono tiny />}
+              <Row label="Fee" value={`₹${Number(payout.fee_amount ?? 0).toFixed(2)}`} />
+              <Row label="GST" value={`₹${Number(payout.tax_amount ?? 0).toFixed(2)}`} />
+              <div className="h-px my-1" style={{ background: 'var(--border)' }} />
+              <Row label="Net credited" value={`₹${Number(payout.net_amount ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`} strong />
+              {dashboardUrl && (
+                <a
+                  href={dashboardUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="mt-3 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold transition-colors"
+                  style={{ background: 'rgba(51, 149, 255, 0.12)', color: '#3395FF' }}
+                >
+                  <i className="ri-external-link-line" />
+                  View in Razorpay Dashboard
+                </a>
+              )}
+            </div>
+          );
+        })()}
 
         {error && (
           <div className="mb-4 p-3 rounded-lg text-xs" style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>

@@ -22,6 +22,11 @@ const envSchema = z.object({
   // ML fraud sidecar (optional)
   ML_FRAUD_URL: z.string().default(''),
   ML_FRAUD_TIMEOUT_MS: z.coerce.number().default(500),
+  // Razorpay (real test-mode API). When both are set, the Razorpay gateway
+  // attempts a real /v1/orders call and falls back to mock on any error.
+  // When either is missing, the gateway runs fully in mock mode.
+  RAZORPAY_KEY_ID: z.string().optional(),
+  RAZORPAY_KEY_SECRET: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);
