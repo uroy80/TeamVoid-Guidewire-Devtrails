@@ -55,6 +55,13 @@ export default function Register() {
   // Safety net: if a returning user somehow lands here (stale bookmark,
   // deep link, Login flow edge case where the mobile lookup missed), skip
   // the registration UI entirely and take them to the dashboard.
+  //
+  // IMPORTANT: the backend issues a "registration tempToken" (payload =
+  // { mobile, isRegistration: true }) for first-time OTP verifications —
+  // that token has no workerId, so hitting /workers/me with it returns
+  // 401 and the global axios interceptor would kick the user to /welcome.
+  // We decode the JWT locally first and only call getMe when the payload
+  // actually has a workerId (i.e. a fully-registered worker).
   const [checkingExisting, setCheckingExisting] = useState(true);
   useEffect(() => {
     let cancelled = false;
@@ -64,6 +71,21 @@ export default function Register() {
         if (!cancelled) setCheckingExisting(false);
         return;
       }
+
+      // Cheap local inspection — no API call, no interceptor involvement.
+      let payload: { workerId?: string; isRegistration?: boolean } | null = null;
+      try {
+        const raw = atob(token.split('.')[1] ?? '');
+        payload = JSON.parse(raw);
+      } catch { /* malformed — treat as new user */ }
+
+      if (!payload?.workerId || payload.isRegistration) {
+        // Either the token is a registration temp-token or we couldn't
+        // read it. Either way, show the registration form.
+        if (!cancelled) setCheckingExisting(false);
+        return;
+      }
+
       try {
         const { data } = await worker.getMe();
         if (cancelled) return;
@@ -74,7 +96,9 @@ export default function Register() {
           return;
         }
       } catch {
-        // Not registered yet (or token invalid) — fall through to the form.
+        // 401/404 — access token no longer corresponds to a real worker.
+        // Fall through to the form rather than triggering the global
+        // redirect-to-/welcome interceptor path.
       }
       if (!cancelled) setCheckingExisting(false);
     })();
