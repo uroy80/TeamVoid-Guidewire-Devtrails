@@ -399,7 +399,7 @@ export default function Dashboard() {
                 <div className="p-3 rounded-xl" style={{ background: 'var(--bg-card)' }}>
                   <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{t('dashboard.coverage_label')}</p>
                   <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                    {activePolicy.coverage_level === 'basic' ? '50' : activePolicy.coverage_level === 'standard' ? '75' : '100'}%
+                    {activePolicy.coverage_level === 'basic' ? '40' : activePolicy.coverage_level === 'standard' ? '60' : '80'}%
                   </p>
                 </div>
                 <div className="p-3 rounded-xl" style={{ background: 'var(--bg-card)' }}>
@@ -438,7 +438,8 @@ export default function Dashboard() {
                   const riskLabels = [{ max: 30, l: 'Low' }, { max: 60, l: 'Medium' }, { max: 80, l: 'High' }, { max: 100, l: 'Very High' }];
                   const riskLabel = riskLabels.find(r => (me.risk_score || 0) <= r.max)?.l || 'Medium';
                   const bd = typeof activePolicy.premium_breakdown === 'string' ? JSON.parse(activePolicy.premium_breakdown) : (activePolicy.premium_breakdown || {});
-                  const coveragePctMap: Record<string, number> = { basic: 50, standard: 75, premium: 100 };
+                  // Kept in lock-step with shared COVERAGE_TIERS: basic=40, standard=60, premium=80.
+                  const coveragePctMap: Record<string, number> = { basic: 40, standard: 60, premium: 80 };
                   await generatePolicyPDF({
                     policyNumber: activePolicy.policy_number,
                     workerName: me.name,
@@ -448,11 +449,11 @@ export default function Dashboard() {
                     riskLabel,
                     tierLabel: tierMap[activePolicy.coverage_level] || 'Standard',
                     premium: Number(activePolicy.weekly_premium),
-                    coveragePct: coveragePctMap[activePolicy.coverage_level] || 75,
-                    dailyPayout: Math.round(Number(me.hourly_rate || 100) * Number(me.avg_hours_per_day || 8) * ((coveragePctMap[activePolicy.coverage_level] || 75) / 100)),
+                    coveragePct: coveragePctMap[activePolicy.coverage_level] || 60,
+                    dailyPayout: Math.round(Number(me.hourly_rate || 100) * Number(me.avg_hours_per_day || 8) * ((coveragePctMap[activePolicy.coverage_level] || 60) / 100)),
                     maxDays: activePolicy.coverage_level === 'basic' ? 3 : activePolicy.coverage_level === 'standard' ? 5 : 7,
                     formulaPremium: `Rs.${bd.basePremium || 35} x ${bd.riskFactor || 1} x ${bd.coverageMultiplier || 1}`,
-                    formulaPayout: `${me.avg_hours_per_day || 8}hrs x Rs.${Math.round(me.hourly_rate || 100)}/hr x ${coveragePctMap[activePolicy.coverage_level] || 75}%`,
+                    formulaPayout: `${me.avg_hours_per_day || 8}hrs x Rs.${Math.round(me.hourly_rate || 100)}/hr x ${coveragePctMap[activePolicy.coverage_level] || 60}%`,
                     riskFactor: bd.riskFactor || 1,
                     startDate: new Date(activePolicy.coverage_period_start).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
                     endDate: new Date(activePolicy.coverage_period_end).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),

@@ -8,9 +8,9 @@ export interface TierConfig {
 }
 
 export const COVERAGE_TIERS: Record<CoverageLevel, TierConfig> = {
-  basic: { coveragePct: 0.50, basePremium: 20, maxDays: 3 },
-  standard: { coveragePct: 0.75, basePremium: 35, maxDays: 5 },
-  premium: { coveragePct: 1.00, basePremium: 50, maxDays: 7 },
+  basic: { coveragePct: 0.40, basePremium: 20, maxDays: 3 },
+  standard: { coveragePct: 0.60, basePremium: 35, maxDays: 5 },
+  premium: { coveragePct: 0.80, basePremium: 50, maxDays: 7 },
 };
 
 export const RISK_TIER_RANGES: Record<RiskTier, { min: number; max: number }> = {

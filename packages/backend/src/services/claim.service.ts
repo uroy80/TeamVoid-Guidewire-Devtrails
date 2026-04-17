@@ -107,8 +107,11 @@ export async function requestClaim(
   const workerData = await db('workers').where({ id: workerId }).first();
   if (!workerData) throw new Error('Worker not found');
 
-  // 3. Get coverage tier config
-  const coveragePct = { basic: 0.50, standard: 0.75, premium: 1.00 }[activePolicy.coverage_level as string] || 0.75;
+  // 3. Get coverage tier config — read from shared COVERAGE_TIERS so basic/standard/premium
+  //    stay in lock-step with the rest of the app (frontend plan cards, payout calcs, pricing).
+  //    Current tiers: basic=40%, standard=60%, premium=80%.
+  const coveragePct =
+    COVERAGE_TIERS[activePolicy.coverage_level as CoverageLevel]?.coveragePct ?? 0.60;
 
   // 4. Resolve duration from a recent matching disruption event (if any)
   //    so the payout reflects the real impact, not a hard-coded 4 hours.
@@ -132,7 +135,7 @@ export async function requestClaim(
   const disruptionHours = effectiveHours;
 
   const hourlyRate = Number(workerData.hourly_rate) || 120;
-  // Apply coverage tier (basic=50%, standard=75%, premium=100%) then clamp
+  // Apply coverage tier (basic=40%, standard=60%, premium=80%) then clamp
   // between Rs. 100 floor and Rs. 2000 ceiling to prevent abuse and preserve UX.
   const rawPayout = Math.round(hourlyRate * effectiveHours * coveragePct);
   const payout = Math.max(100, Math.min(2000, rawPayout));
