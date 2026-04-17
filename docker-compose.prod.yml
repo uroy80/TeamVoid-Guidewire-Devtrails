@@ -35,6 +35,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # Vite bakes VITE_* vars in at build time. Forward them from the host
+        # .env so the frontend bundle ships with a valid Google Maps key.
+        VITE_GOOGLE_MAPS_KEY: ${VITE_GOOGLE_MAPS_KEY}
+        VITE_API_URL: ${VITE_API_URL:-}
     container_name: gigshield-app
     restart: always
     depends_on:

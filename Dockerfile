@@ -1,6 +1,12 @@
 # ── Stage 1: Build ──
 FROM node:22-alpine AS builder
 
+# Build-time public vars for Vite. Vite only inlines VITE_* env vars that are
+# present in the frontend package's own directory at build time, so we receive
+# them as ARGs and drop them into packages/frontend/.env before the build.
+ARG VITE_GOOGLE_MAPS_KEY=""
+ARG VITE_API_URL=""
+
 WORKDIR /app
 COPY package*.json ./
 COPY packages/shared/package.json packages/shared/
@@ -12,6 +18,11 @@ COPY packages/shared/ packages/shared/
 COPY packages/backend/ packages/backend/
 COPY packages/frontend/ packages/frontend/
 COPY tsconfig.base.json ./
+
+# Write the build-time env file so Vite can inline the key. Kept to this
+# scoped file (not the repo root .env) so nothing bleeds into the backend.
+RUN printf 'VITE_GOOGLE_MAPS_KEY=%s\nVITE_API_URL=%s\n' \
+    "$VITE_GOOGLE_MAPS_KEY" "$VITE_API_URL" > packages/frontend/.env
 
 # Build shared first, then backend and frontend
 RUN npm run build --workspace=packages/shared

@@ -44,8 +44,14 @@ interface DisruptionEvent {
   zone_name?: string;
 }
 
+// Detect whether a Google Maps API key was baked in at build time. When the
+// bundle ships without one (misconfigured Dockerfile build-arg, expired key,
+// restricted referrer), the Maps SDK will emit "This page can't load Google
+// Maps correctly" and we want to surface a cleaner fallback instead.
+const HAS_MAPS_KEY = !!((import.meta as { env?: Record<string, string> }).env?.VITE_GOOGLE_MAPS_KEY);
+
 export default function CoverageMap({ me, mapTile: _mapTile }: Props) {
-  const { isLoaded } = useGoogleMaps();
+  const { isLoaded, loadError } = useGoogleMaps();
   const [stores, setStores] = useState<NearbyStore[]>([]);
   const [loading, setLoading] = useState(true);
   const [trail, setTrail] = useState<TrailPoint[]>([]);
@@ -131,6 +137,58 @@ export default function CoverageMap({ me, mapTile: _mapTile }: Props) {
   const onMapLoad = useCallback((_map: google.maps.Map) => {
     // Map loaded - no additional setup needed
   }, []);
+
+  // Graceful fallback when Google Maps can't initialise — either the build
+  // shipped without a key, or Google rejected it (referrer, billing, quota).
+  // Rather than showing Google's generic red banner we render a stat card so
+  // the rest of the Dashboard remains usable during the demo.
+  if (!HAS_MAPS_KEY || loadError) {
+    return (
+      <div className="px-6 py-4">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
+              <i className="ri-map-pin-line mr-1.5" style={{ color: 'var(--accent)' }} />
+              Coverage Zone
+            </h3>
+            <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+              {stores.length} dark stores nearby
+            </p>
+          </div>
+        </div>
+        <div
+          className="rounded-2xl border border-white/10 p-6 flex flex-col items-center justify-center text-center"
+          style={{ height: 240, background: 'var(--bg-secondary)' }}
+        >
+          <i className="ri-map-2-line text-3xl mb-2" style={{ color: 'var(--text-muted)' }} />
+          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+            Map view temporarily unavailable
+          </p>
+          <p className="text-xs mt-1 max-w-xs" style={{ color: 'var(--text-muted)' }}>
+            {loadError
+              ? 'Google Maps failed to load. Your coverage and stores list below are still live.'
+              : 'Map credentials are being configured. Your coverage data is unaffected.'}
+          </p>
+        </div>
+        {/* Store count by platform still works without the map */}
+        <div className="flex gap-2 mt-3">
+          {['blinkit', 'zepto', 'instamart'].map((p) => {
+            const count = stores.filter((s) => s.platform === p).length;
+            if (!count) return null;
+            return (
+              <div key={p} className="glass flex items-center gap-2 px-3 py-2 flex-1">
+                <img src={PLATFORM_ICONS[p]?.ico} className="w-5 h-5 rounded-full" alt="" />
+                <div>
+                  <p className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>{count}</p>
+                  <p className="text-[9px] capitalize" style={{ color: 'var(--text-muted)' }}>{p}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   if (!isLoaded || loading) {
     return (
