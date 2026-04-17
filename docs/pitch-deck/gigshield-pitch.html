@@ -558,6 +558,14 @@
   }
 
   /* --- Final "thank you" slide --- */
+  /* Override the base `.slide` grid (72px / 1fr / 48px) so main fills the
+     whole 1280×720 canvas. Without this, the hidden header/footer still
+     leave the auto-placed main in the 72px first row, collapsing all the
+     content into a tiny strip at the top. Same trick the title slide uses. */
+  .outro {
+    display: flex !important;
+    grid-template: none !important;
+  }
   .outro main {
     background: linear-gradient(135deg, var(--gw-navy) 0%, #001F45 100%);
     color: var(--gw-white);
@@ -567,6 +575,9 @@
     align-items: center;
     text-align: center;
     position: relative;
+    width: 100%;
+    height: 100%;
+    padding: 56px 48px; /* tighter horizontal padding so all 4 link cards fit comfortably */
   }
   .outro main .outro-logo {
     height: 120px;
@@ -597,9 +608,10 @@
   .outro main .link-card {
     background: rgba(255,255,255,0.08);
     border: 1px solid rgba(255,255,255,0.18);
-    padding: 16px 24px;
+    padding: 14px 20px;
     border-radius: var(--radius);
-    min-width: 200px;
+    min-width: 180px;
+    max-width: 260px;
   }
   .outro main .link-card .k {
     font-size: 10px;
