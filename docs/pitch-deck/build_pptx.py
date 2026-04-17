@@ -34,6 +34,13 @@ GW_INK     = RGBColor(0x0E, 0x1A, 0x2A)
 SLIDE_W = Inches(13.333)
 SLIDE_H = Inches(7.5)
 
+# Logo assets — copied from packages/frontend/public/logos. Two variants:
+#   - gigshield.png      : navy shield + navy wordmark, for light backgrounds
+#   - gigshield-dark.png : white/pale shield + wordmark, for dark (navy) backgrounds
+ASSET_DIR       = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets')
+LOGO_LIGHT_BG   = os.path.join(ASSET_DIR, 'gigshield.png')       # use on white
+LOGO_DARK_BG    = os.path.join(ASSET_DIR, 'gigshield-dark.png')  # use on navy
+
 prs = Presentation()
 prs.slide_width  = SLIDE_W
 prs.slide_height = SLIDE_H
@@ -41,6 +48,16 @@ prs.slide_height = SLIDE_H
 BLANK = prs.slide_layouts[6]
 
 # --- Helpers --------------------------------------------------------------
+def add_logo(slide, left, top, *, height, on_dark=False):
+    """Insert the GigShield logo PNG, preserving aspect ratio.
+
+    `height` is the desired rendered height (EMU / Inches object).
+    Pass `on_dark=True` to use the white-on-dark variant (for navy backgrounds).
+    """
+    path = LOGO_DARK_BG if on_dark else LOGO_LIGHT_BG
+    # python-pptx will infer width from the PNG's aspect ratio when width is omitted.
+    return slide.shapes.add_picture(path, left, top, height=height)
+
 def add_rect(slide, left, top, width, height, fill, line=None):
     shp = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, left, top, width, height)
     shp.fill.solid()
@@ -121,13 +138,16 @@ def add_slide_chrome(slide, page_num, section_name):
     add_rect(slide, 0, 0, SLIDE_W, SLIDE_H, GW_WHITE)
     # Header bar
     add_rect(slide, 0, 0, SLIDE_W, Inches(0.55), GW_NAVY)
-    # Orange dot in header
-    dot = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.45), Inches(0.22), Inches(0.1), Inches(0.1))
-    dot.fill.solid(); dot.fill.fore_color.rgb = GW_ORANGE; dot.line.fill.background()
+    # GigShield logo (white variant) in header — the PNG is a shield + wordmark
+    # stacked, so we inset slightly and keep it small so it reads as a corner
+    # mark, not the main title.
+    add_logo(slide, Inches(0.35), Inches(0.06), height=Inches(0.45), on_dark=True)
+    # Orange accent divider right after the logo
+    add_rect(slide, Inches(1.85), Inches(0.18), Inches(0.02), Inches(0.2), GW_ORANGE)
     # Brand text
-    add_text(slide, Inches(0.65), Inches(0.13), Inches(8), Inches(0.3),
-             f"GigShield   |   Phase 3 Final Submission",
-             size=12, bold=True, color=GW_WHITE)
+    add_text(slide, Inches(1.95), Inches(0.13), Inches(8), Inches(0.3),
+             f"Phase 3 Final Submission   ·   Guidewire DEVTrails 2026",
+             size=11, bold=True, color=RGBColor(0xD8, 0xE2, 0xF0))
     # Section on the right
     add_text(slide, Inches(9.5), Inches(0.13), Inches(3.6), Inches(0.3),
              section_name.upper(),
@@ -241,14 +261,9 @@ glow.line.fill.background()
 # Orange block corner
 add_rect(s, Inches(11.5), 0, Inches(1.8), Inches(0.4), GW_ORANGE)
 
-# Logo block
-logo = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(0.8), Inches(0.8),
-                           Inches(0.6), Inches(0.6))
-logo.fill.solid(); logo.fill.fore_color.rgb = GW_ORANGE; logo.line.fill.background()
-logo.adjustments[0] = 0.2
-add_text(s, Inches(0.8), Inches(0.88), Inches(0.6), Inches(0.5),
-         "G", size=24, bold=True, color=GW_WHITE, align=PP_ALIGN.CENTER)
-add_text(s, Inches(1.55), Inches(0.95), Inches(10), Inches(0.3),
+# Logo block — real GigShield logo (white-on-dark variant) top-left
+add_logo(s, Inches(0.8), Inches(0.7), height=Inches(1.0), on_dark=True)
+add_text(s, Inches(2.15), Inches(1.05), Inches(10), Inches(0.3),
          "GUIDEWIRE DEVTRAILS 2026   ·   PHASE 3 FINAL",
          size=10, bold=True, color=RGBColor(0xB0, 0xC0, 0xD8))
 
@@ -1297,20 +1312,26 @@ add_rect(s, Inches(11.5), 0, Inches(1.8), Inches(0.4), GW_ORANGE)
 add_pill(s, Inches(9.5), Inches(0.6), "GUIDEWIRE DEVTRAILS 2026 · PHASE 3 FINAL",
          RGBColor(0x5E, 0x2E, 0x10), GW_ORANGE2, width=Inches(3.5))
 
+# Big centered GigShield logo above the sign-off
+_thx_logo_h = Inches(1.35)
+_thx_logo = add_logo(s, Inches(0), Inches(1.1), height=_thx_logo_h, on_dark=True)
+# Re-centre horizontally now that python-pptx has computed the picture width
+_thx_logo.left = int((SLIDE_W - _thx_logo.width) / 2)
+
 # Huge "Thank you."
-add_runs(s, Inches(1), Inches(2.3), Inches(11.3), Inches(1.5),
-         [('Thank ', {'size': 72, 'bold': True, 'color': GW_WHITE}),
-          ('you',    {'size': 72, 'bold': True, 'color': GW_ORANGE}),
-          ('.',      {'size': 72, 'bold': True, 'color': GW_WHITE})],
+add_runs(s, Inches(1), Inches(2.7), Inches(11.3), Inches(1.5),
+         [('Thank ', {'size': 64, 'bold': True, 'color': GW_WHITE}),
+          ('you',    {'size': 64, 'bold': True, 'color': GW_ORANGE}),
+          ('.',      {'size': 64, 'bold': True, 'color': GW_WHITE})],
          align=PP_ALIGN.CENTER)
 
 # Tagline
-add_text(s, Inches(1), Inches(3.7), Inches(11.3), Inches(0.5),
+add_text(s, Inches(1), Inches(4.0), Inches(11.3), Inches(0.5),
          "Protecting India's gig workers, one disruption at a time.",
-         size=19, color=RGBColor(0xD0, 0xD8, 0xE8), align=PP_ALIGN.CENTER, italic=True)
+         size=17, color=RGBColor(0xD0, 0xD8, 0xE8), align=PP_ALIGN.CENTER, italic=True)
 
 # 4 link cards
-lc_y = Inches(4.9); lc_w = Inches(2.9); lc_h = Inches(1.3)
+lc_y = Inches(5.0); lc_w = Inches(2.9); lc_h = Inches(1.3)
 lnks = [
     ("LIVE PRODUCT",  "gigshield.in"),
     ("DEMO VIDEO",    "youtu.be/bx8AVAU_amk"),

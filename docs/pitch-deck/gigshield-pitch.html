@@ -80,6 +80,12 @@
     border-radius: 2px;
     box-shadow: 0 0 0 3px rgba(242, 101, 34, 0.25);
   }
+  .slide header .brand .brand-logo {
+    height: 30px;
+    width: auto;
+    object-fit: contain;
+    display: block;
+  }
   .slide header .brand .divider {
     width: 1px;
     height: 22px;
@@ -471,16 +477,11 @@
     z-index: 1;
   }
   .title-slide .brand-block .logo {
-    width: 48px; height: 48px;
-    background: var(--gw-orange);
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-weight: 900;
-    font-size: 24px;
-    box-shadow: 0 8px 24px rgba(242,101,34,0.4);
+    height: 88px;
+    width: auto;
+    object-fit: contain;
+    display: block;
+    filter: drop-shadow(0 6px 18px rgba(0,0,0,0.35));
   }
   .title-slide .brand-block .tag {
     font-size: 11px;
@@ -566,6 +567,13 @@
     align-items: center;
     text-align: center;
     position: relative;
+  }
+  .outro main .outro-logo {
+    height: 120px;
+    width: auto;
+    object-fit: contain;
+    margin-bottom: 24px;
+    filter: drop-shadow(0 10px 30px rgba(0,0,0,0.4));
   }
   .outro main h1 {
     font-size: 84px;
@@ -669,7 +677,7 @@
   <main>
     <div>
       <div class="brand-block">
-        <div class="logo">G</div>
+        <img class="logo" src="assets/gigshield-dark.png" alt="GigShield">
         <div>
           <div class="tag">Guidewire DEVTrails 2026 · Phase 3 Final</div>
         </div>
@@ -710,7 +718,7 @@
 <!-- ========== SLIDE 2 — The Problem ========== -->
 <section class="slide">
   <header>
-    <div class="brand"><span class="dot"></span> GigShield<span class="divider"></span> <span style="font-weight:400;opacity:0.75;">Phase 3 Final Submission</span></div>
+    <div class="brand"><img class="brand-logo" src="assets/gigshield-dark.png" alt="GigShield"><span class="divider"></span> <span style="font-weight:400;opacity:0.75;">Phase 3 Final Submission</span></div>
     <div class="meta">01 / The Problem</div>
   </header>
   <main>
@@ -752,7 +760,7 @@
 <!-- ========== SLIDE 3 — Market ========== -->
 <section class="slide">
   <header>
-    <div class="brand"><span class="dot"></span> GigShield<span class="divider"></span> <span style="font-weight:400;opacity:0.75;">Market & Opportunity</span></div>
+    <div class="brand"><img class="brand-logo" src="assets/gigshield-dark.png" alt="GigShield"><span class="divider"></span> <span style="font-weight:400;opacity:0.75;">Market & Opportunity</span></div>
     <div class="meta">02 / Market</div>
   </header>
   <main>
@@ -806,7 +814,7 @@
 <!-- ========== SLIDE 4 — The Insight ========== -->
 <section class="slide">
   <header>
-    <div class="brand"><span class="dot"></span> GigShield<span class="divider"></span> <span style="font-weight:400;opacity:0.75;">The Core Insight</span></div>
+    <div class="brand"><img class="brand-logo" src="assets/gigshield-dark.png" alt="GigShield"><span class="divider"></span> <span style="font-weight:400;opacity:0.75;">The Core Insight</span></div>
     <div class="meta">03 / Insight</div>
   </header>
   <main>
@@ -846,7 +854,7 @@
 <!-- ========== SLIDE 5 — The Solution (4-step) ========== -->
 <section class="slide">
   <header>
-    <div class="brand"><span class="dot"></span> GigShield<span class="divider"></span> <span style="font-weight:400;opacity:0.75;">Product Overview</span></div>
+    <div class="brand"><img class="brand-logo" src="assets/gigshield-dark.png" alt="GigShield"><span class="divider"></span> <span style="font-weight:400;opacity:0.75;">Product Overview</span></div>
     <div class="meta">04 / Solution</div>
   </header>
   <main>
@@ -908,7 +916,7 @@
 <!-- ========== SLIDE 6 — Live Product ========== -->
 <section class="slide">
   <header>
-    <div class="brand"><span class="dot"></span> GigShield<span class="divider"></span> <span style="font-weight:400;opacity:0.75;">Live Product</span></div>
+    <div class="brand"><img class="brand-logo" src="assets/gigshield-dark.png" alt="GigShield"><span class="divider"></span> <span style="font-weight:400;opacity:0.75;">Live Product</span></div>
     <div class="meta">05 / Demo</div>
   </header>
   <main>
@@ -957,7 +965,7 @@
 <!-- ========== SLIDE 7 — Architecture ========== -->
 <section class="slide">
   <header>
-    <div class="brand"><span class="dot"></span> GigShield<span class="divider"></span> <span style="font-weight:400;opacity:0.75;">System Architecture</span></div>
+    <div class="brand"><img class="brand-logo" src="assets/gigshield-dark.png" alt="GigShield"><span class="divider"></span> <span style="font-weight:400;opacity:0.75;">System Architecture</span></div>
     <div class="meta">06 / Architecture</div>
   </header>
   <main>
@@ -1014,7 +1022,7 @@
 <!-- ========== SLIDE 8 — BAS Engine ========== -->
 <section class="slide">
   <header>
-    <div class="brand"><span class="dot"></span> GigShield<span class="divider"></span> <span style="font-weight:400;opacity:0.75;">BAS Fraud Engine</span></div>
+    <div class="brand"><img class="brand-logo" src="assets/gigshield-dark.png" alt="GigShield"><span class="divider"></span> <span style="font-weight:400;opacity:0.75;">BAS Fraud Engine</span></div>
     <div class="meta">07 / Anti-Spoofing</div>
   </header>
   <main>
@@ -1049,7 +1057,7 @@
 <!-- ========== SLIDE 9 — Payment Routing ========== -->
 <section class="slide">
   <header>
-    <div class="brand"><span class="dot"></span> GigShield<span class="divider"></span> <span style="font-weight:400;opacity:0.75;">Payment Routing</span></div>
+    <div class="brand"><img class="brand-logo" src="assets/gigshield-dark.png" alt="GigShield"><span class="divider"></span> <span style="font-weight:400;opacity:0.75;">Payment Routing</span></div>
     <div class="meta">08 / Payments</div>
   </header>
   <main>
@@ -1108,7 +1116,7 @@
 <!-- ========== SLIDE 10 — AI Layer ========== -->
 <section class="slide">
   <header>
-    <div class="brand"><span class="dot"></span> GigShield<span class="divider"></span> <span style="font-weight:400;opacity:0.75;">AI Intelligence Layer</span></div>
+    <div class="brand"><img class="brand-logo" src="assets/gigshield-dark.png" alt="GigShield"><span class="divider"></span> <span style="font-weight:400;opacity:0.75;">AI Intelligence Layer</span></div>
     <div class="meta">09 / AI</div>
   </header>
   <main>
@@ -1159,7 +1167,7 @@
 <!-- ========== SLIDE 11 — 11 Languages ========== -->
 <section class="slide">
   <header>
-    <div class="brand"><span class="dot"></span> GigShield<span class="divider"></span> <span style="font-weight:400;opacity:0.75;">Multi-Language UX</span></div>
+    <div class="brand"><img class="brand-logo" src="assets/gigshield-dark.png" alt="GigShield"><span class="divider"></span> <span style="font-weight:400;opacity:0.75;">Multi-Language UX</span></div>
     <div class="meta">10 / i18n</div>
   </header>
   <main>
@@ -1230,7 +1238,7 @@
 <!-- ========== SLIDE 12 — Live Ops War Room ========== -->
 <section class="slide">
   <header>
-    <div class="brand"><span class="dot"></span> GigShield<span class="divider"></span> <span style="font-weight:400;opacity:0.75;">Live Ops War Room</span></div>
+    <div class="brand"><img class="brand-logo" src="assets/gigshield-dark.png" alt="GigShield"><span class="divider"></span> <span style="font-weight:400;opacity:0.75;">Live Ops War Room</span></div>
     <div class="meta">11 / Real-Time</div>
   </header>
   <main>
@@ -1301,7 +1309,7 @@
 <!-- ========== SLIDE 13 — Community Reports (differentiator) ========== -->
 <section class="slide">
   <header>
-    <div class="brand"><span class="dot"></span> GigShield<span class="divider"></span> <span style="font-weight:400;opacity:0.75;">The Differentiator</span></div>
+    <div class="brand"><img class="brand-logo" src="assets/gigshield-dark.png" alt="GigShield"><span class="divider"></span> <span style="font-weight:400;opacity:0.75;">The Differentiator</span></div>
     <div class="meta">12 / Community</div>
   </header>
   <main>
@@ -1366,7 +1374,7 @@
 <!-- ========== SLIDE 14 — Unit Economics ========== -->
 <section class="slide">
   <header>
-    <div class="brand"><span class="dot"></span> GigShield<span class="divider"></span> <span style="font-weight:400;opacity:0.75;">Business Model</span></div>
+    <div class="brand"><img class="brand-logo" src="assets/gigshield-dark.png" alt="GigShield"><span class="divider"></span> <span style="font-weight:400;opacity:0.75;">Business Model</span></div>
     <div class="meta">13 / Economics</div>
   </header>
   <main>
@@ -1433,7 +1441,7 @@
 <!-- ========== SLIDE 15 — Tech Stack Breakdown ========== -->
 <section class="slide">
   <header>
-    <div class="brand"><span class="dot"></span> GigShield<span class="divider"></span> <span style="font-weight:400;opacity:0.75;">Engineering</span></div>
+    <div class="brand"><img class="brand-logo" src="assets/gigshield-dark.png" alt="GigShield"><span class="divider"></span> <span style="font-weight:400;opacity:0.75;">Engineering</span></div>
     <div class="meta">14 / Tech Stack</div>
   </header>
   <main>
@@ -1517,7 +1525,7 @@
 <!-- ========== SLIDE 16 — Traction / Scorecard ========== -->
 <section class="slide">
   <header>
-    <div class="brand"><span class="dot"></span> GigShield<span class="divider"></span> <span style="font-weight:400;opacity:0.75;">Phase 3 Scorecard</span></div>
+    <div class="brand"><img class="brand-logo" src="assets/gigshield-dark.png" alt="GigShield"><span class="divider"></span> <span style="font-weight:400;opacity:0.75;">Phase 3 Scorecard</span></div>
     <div class="meta">15 / Traction</div>
   </header>
   <main>
@@ -1569,7 +1577,7 @@
 <!-- ========== SLIDE 17 — The Ask ========== -->
 <section class="slide">
   <header>
-    <div class="brand"><span class="dot"></span> GigShield<span class="divider"></span> <span style="font-weight:400;opacity:0.75;">What's Next</span></div>
+    <div class="brand"><img class="brand-logo" src="assets/gigshield-dark.png" alt="GigShield"><span class="divider"></span> <span style="font-weight:400;opacity:0.75;">What's Next</span></div>
     <div class="meta">16 / Roadmap</div>
   </header>
   <main>
@@ -1625,6 +1633,7 @@
       <div class="pill" style="background: rgba(242,101,34,0.2); color: var(--gw-orange-2);">GUIDEWIRE DEVTRAILS 2026 · PHASE 3 FINAL</div>
     </div>
 
+    <img class="outro-logo" src="assets/gigshield-dark.png" alt="GigShield">
     <h1>Thank <span class="accent">you</span>.</h1>
     <div class="tagline">Protecting India's gig workers, one disruption at a time.</div>
 
