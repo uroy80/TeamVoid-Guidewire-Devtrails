@@ -204,7 +204,7 @@ router.get('/workers/:id/delete-preview', async (req: AuthRequest, res: Response
       worker: {
         id: worker.id,
         name: worker.name,
-        mobile_number: worker.mobile_number,
+        mobile_number: worker.mobile,
       },
       counts: {
         payouts,
@@ -273,7 +273,7 @@ router.delete('/workers/:id', async (req: AuthRequest, res: Response) => {
         resource_type: 'worker',
         resource_id: id,
         metadata: {
-          mobile_number: worker.mobile_number,
+          mobile_number: worker.mobile,
           name: worker.name,
           cascade_summary: summary,
         },
@@ -307,7 +307,7 @@ router.get('/claims', async (req: AuthRequest, res: Response) => {
       .select(
         'c.*',
         'w.name as worker_name',
-        'w.mobile_number as worker_mobile',
+        'w.mobile as worker_mobile',
         'p.coverage_level as policy_tier',
         'dz.name as zone_name',
       )
@@ -345,7 +345,7 @@ router.get('/claims/:id', async (req: AuthRequest, res: Response) => {
       .select(
         'c.*',
         'w.name as worker_name',
-        'w.mobile_number as worker_mobile',
+        'w.mobile as worker_mobile',
         'p.coverage_level as policy_tier',
       )
       .where('c.id', id)
